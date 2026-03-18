@@ -3,6 +3,7 @@ import { useTickerList } from '../hooks/useTickerList';
 import { useInterestMap } from '../hooks/useInterestMap';
 import { useStockData } from '../hooks/useStockData';
 import { useTableState } from '../hooks/useTableState';
+import { useColumnResize } from '../hooks/useColumnResize';
 import { computeStockRow } from '../utils/computeStockRow';
 import { generateCsv, buildExportFilename, downloadCsv } from '../utils/csvExporter';
 import { ToolBar } from './ToolBar';
@@ -70,6 +71,8 @@ export function TickerTable() {
     sortRows,
   } = useTableState();
 
+  const { widths, onResizeStart, isResizingRef } = useColumnResize();
+
   // Collect computed row data from child components for sorting and export.
   // Using a ref so mutations don't trigger re-renders.
   const rowDataMapRef = useRef(new Map<string, StockRowData | null>());
@@ -130,6 +133,9 @@ export function TickerTable() {
             sortColumn={sortColumn}
             sortDirection={sortDirection}
             onSort={onSort}
+            columnWidths={widths}
+            onResizeStart={onResizeStart}
+            isResizingRef={isResizingRef}
           />
           <tbody>
             {sortedTickers.map((ticker) => (

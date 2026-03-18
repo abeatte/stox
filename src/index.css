@@ -310,3 +310,44 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* ── Column resize handles ── */
+.gs-table thead th {
+  position: relative;
+  overflow: visible;
+}
+
+.gs-th-content {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 6px;
+}
+
+.gs-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 3;
+}
+
+.gs-resize-handle:hover,
+.gs-resize-handle:active {
+  background: #1a73e8;
+  opacity: 0.4;
+}
+
+/* Force table to respect col widths */
+.gs-table {
+  table-layout: fixed;
+}
+
+.gs-table th,
+.gs-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

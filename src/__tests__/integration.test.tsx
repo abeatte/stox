@@ -286,7 +286,8 @@ describe('Stox Integration Tests', () => {
       });
 
       const headers = screen.getAllByRole('columnheader');
-      expect(headers).toHaveLength(19);
+      // 19 data columns + 1 empty header for the remove-button column
+      expect(headers).toHaveLength(20);
 
       // Spot-check a few headers
       expect(headers[0]).toHaveTextContent('Ticker');

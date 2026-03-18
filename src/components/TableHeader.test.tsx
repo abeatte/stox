@@ -14,6 +14,7 @@ function defaultWidths(): Record<ColumnKey, number> {
 const baseProps = {
   columnWidths: defaultWidths(),
   onResizeStart: () => {},
+  onAutoFit: () => {},
   isResizingRef: { current: false },
 };
 

@@ -71,7 +71,7 @@ export function TickerTable() {
     sortRows,
   } = useTableState();
 
-  const { widths, onResizeStart, isResizingRef } = useColumnResize();
+  const { widths, onResizeStart, onAutoFit, isResizingRef, tableRef } = useColumnResize();
 
   // Collect computed row data from child components for sorting and export.
   // Using a ref so mutations don't trigger re-renders.
@@ -137,13 +137,14 @@ export function TickerTable() {
         hasData={hasData}
       />
       <div className="gs-table-wrap">
-        <table className="gs-table" role="table" aria-label="Ticker table">
+        <table className="gs-table" role="table" aria-label="Ticker table" ref={tableRef}>
           <TableHeader
             sortColumn={sortColumn}
             sortDirection={sortDirection}
             onSort={onSort}
             columnWidths={widths}
             onResizeStart={onResizeStart}
+            onAutoFit={onAutoFit}
             isResizingRef={isResizingRef}
           />
           <tbody>

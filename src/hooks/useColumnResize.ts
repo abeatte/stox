@@ -26,6 +26,8 @@ function defaultWidth(key: ColumnKey): number {
 }
 
 const MIN_WIDTH = 40;
+/** Extra padding to account for cell padding (10px each side) */
+const AUTOFIT_PAD = 22;
 
 function buildInitialWidths(): Record<ColumnKey, number> {
   const map = {} as Record<ColumnKey, number>;
@@ -35,22 +37,23 @@ function buildInitialWidths(): Record<ColumnKey, number> {
   return map;
 }
 
+/** Resolve the column index for a given ColumnKey. */
+function colIndex(key: ColumnKey): number {
+  return COLUMNS.findIndex((c) => c.key === key);
+}
+
 /**
- * Hook that manages per-column widths and provides a mousedown handler
- * for drag-to-resize behaviour (Google Sheets style).
- *
- * Also exposes `isResizing` — a ref-backed flag that the click handler
- * on <th> can check to suppress sorting when a resize just finished.
+ * Hook that manages per-column widths and provides handlers for
+ * drag-to-resize and double-click-to-autofit (Google Sheets style).
  */
 export function useColumnResize() {
   const [widths, setWidths] = useState<Record<ColumnKey, number>>(buildInitialWidths);
 
-  // Track drag state in a ref so mousemove/mouseup don't need React state updates per pixel.
   const dragRef = useRef<{ key: ColumnKey; startX: number; startW: number } | null>(null);
-
-  // Flag that stays true from mousedown on the handle until the click event
-  // has had a chance to fire (and be suppressed).
   const isResizingRef = useRef(false);
+
+  /** Ref to the <table> element — set by TickerTable. */
+  const tableRef = useRef<HTMLTableElement | null>(null);
 
   const onResizeStart = useCallback(
     (key: ColumnKey, e: React.MouseEvent) => {
@@ -76,8 +79,6 @@ export function useColumnResize() {
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
 
-        // Clear the flag after a tick so the click event (which fires
-        // right after mouseup) still sees it as true and gets suppressed.
         requestAnimationFrame(() => {
           isResizingRef.current = false;
         });
@@ -91,5 +92,37 @@ export function useColumnResize() {
     [widths],
   );
 
-  return { widths, onResizeStart, isResizingRef };
+  /**
+   * Double-click handler: auto-fit column width to its content.
+   * Temporarily removes the fixed width so cells can expand to their
+   * natural size, measures the widest cell, then locks the width.
+   */
+  const onAutoFit = useCallback((key: ColumnKey) => {
+    const table = tableRef.current;
+    if (!table) return;
+
+    const idx = colIndex(key);
+    if (idx === -1) return;
+
+    // Temporarily set width to 0 on the <col> so scrollWidth reflects content
+    const col = table.querySelector('colgroup')?.children[idx] as HTMLElement | undefined;
+    const prevWidth = col?.style.width;
+    if (col) col.style.width = '0px';
+
+    let maxW = MIN_WIDTH;
+    const rows = table.querySelectorAll('tr');
+    for (const row of rows) {
+      const cell = row.children[idx] as HTMLElement | undefined;
+      if (cell) {
+        maxW = Math.max(maxW, cell.scrollWidth + AUTOFIT_PAD);
+      }
+    }
+
+    // Restore previous width before setting state (avoids flicker)
+    if (col && prevWidth !== undefined) col.style.width = prevWidth;
+
+    setWidths((prev) => ({ ...prev, [key]: maxW }));
+  }, []);
+
+  return { widths, onResizeStart, onAutoFit, isResizingRef, tableRef };
 }

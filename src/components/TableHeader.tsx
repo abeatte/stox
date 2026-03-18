@@ -8,6 +8,7 @@ export interface TableHeaderProps {
   onSort: (col: ColumnKey) => void;
   columnWidths: Record<ColumnKey, number>;
   onResizeStart: (key: ColumnKey, e: React.MouseEvent) => void;
+  onAutoFit: (key: ColumnKey) => void;
   isResizingRef: RefObject<boolean>;
 }
 
@@ -21,6 +22,7 @@ export function TableHeader({
   onSort,
   columnWidths,
   onResizeStart,
+  onAutoFit,
   isResizingRef,
 }: TableHeaderProps) {
   const handleHeaderClick = (key: ColumnKey) => {
@@ -66,6 +68,10 @@ export function TableHeader({
                 <span
                   className="gs-resize-handle"
                   onMouseDown={(e) => onResizeStart(col.key, e)}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    onAutoFit(col.key);
+                  }}
                   role="separator"
                   aria-orientation="vertical"
                 />

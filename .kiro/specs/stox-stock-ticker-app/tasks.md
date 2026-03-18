@@ -165,13 +165,13 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - `ExportButton`: disabled with tooltip when no data
     - Run `git add -A && git commit -m "feat: create ToolBar component"`
     - _Requirements: 9.1, 11.1, 11.2, 11.3, 9.5_
-  - [-] 12.3 Create `TableHeader` component
+  - [x] 12.3 Create `TableHeader` component
     - Render 19 column headers from `COLUMNS` array
     - Click to sort; toggle asc/desc on repeated click
     - Show visual sort direction indicator on active column
     - Run `git add -A && git commit -m "feat: create TableHeader component"`
     - _Requirements: 2.3, 10.2, 10.3, 10.4_
-  - [ ] 12.4 Create `StockRow` component
+  - [-] 12.4 Create `StockRow` component
     - Render one row per ticker with formatted values using `formatValue()`
     - Show loading indicator while data is fetching
     - Show error indicator on fetch failure

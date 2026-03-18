@@ -154,12 +154,12 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 12. Build UI components and wire everything together
-  - [-] 12.1 Create `App.tsx` with QueryClientProvider and top-level layout
+  - [x] 12.1 Create `App.tsx` with QueryClientProvider and top-level layout
     - Set up TanStack Query `QueryClient`
     - Render `TickerTable` or `EmptyState` based on ticker list
     - Run `git add -A && git commit -m "feat: create App.tsx with QueryClientProvider"`
     - _Requirements: 1.1, 1.2, 5.3_
-  - [ ] 12.2 Create `ToolBar` component
+  - [-] 12.2 Create `ToolBar` component
     - Render `SearchInput`, `AddTickerForm`, and `ExportButton`
     - `AddTickerForm`: text input + submit button, show validation messages for empty/duplicate
     - `ExportButton`: disabled with tooltip when no data

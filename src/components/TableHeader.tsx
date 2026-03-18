@@ -22,12 +22,11 @@ export function TableHeader({ sortColumn, sortDirection, onSort }: TableHeaderPr
             <th
               key={col.key}
               onClick={() => onSort(col.key)}
-              style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
               aria-sort={isActive ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
             >
               {col.label}
               {isActive && (
-                <span aria-hidden="true" style={{ marginLeft: 4 }}>
+                <span aria-hidden="true" className="gs-sort-arrow">
                   {sortDirection === 'asc' ? '▲' : '▼'}
                 </span>
               )}

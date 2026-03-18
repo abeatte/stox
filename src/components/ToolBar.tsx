@@ -95,7 +95,7 @@ export function ToolBar({
   hasData,
 }: ToolBarProps) {
   return (
-    <div role="toolbar" aria-label="Toolbar">
+    <div role="toolbar" aria-label="Toolbar" className="gs-toolbar">
       <SearchInput value={searchQuery} onChange={onSearchChange} />
       <AddTickerForm onAddTicker={onAddTicker} />
       <ExportButton onExport={onExport} hasData={hasData} />

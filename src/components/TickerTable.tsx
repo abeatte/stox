@@ -124,8 +124,8 @@ export function TickerTable() {
         onExport={handleExport}
         hasData={hasData}
       />
-      <div style={{ overflowX: 'auto' }}>
-        <table role="table" aria-label="Ticker table">
+      <div className="gs-table-wrap">
+        <table className="gs-table" role="table" aria-label="Ticker table">
           <TableHeader
             sortColumn={sortColumn}
             sortDirection={sortDirection}

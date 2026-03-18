@@ -9,7 +9,7 @@ function AppContent() {
   const [tickers, addTicker] = useTickerList();
 
   return (
-    <main>
+    <main className="gs-app">
       {tickers.length > 0 ? <TickerTable /> : <EmptyState onAddTicker={addTicker} />}
     </main>
   );

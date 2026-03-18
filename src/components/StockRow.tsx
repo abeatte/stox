@@ -13,6 +13,8 @@ export interface StockRowProps {
   onRemove: (ticker: string) => void;
 }
 
+const NUMERIC_TYPES = new Set(['currency', 'percent', 'ratio', 'large-number']);
+
 /**
  * Renders a single stock row in the ticker table.
  * Shows loading/error states when appropriate, otherwise renders
@@ -33,7 +35,7 @@ export function StockRow({
     return (
       <tr>
         <td>{ticker}</td>
-        <td colSpan={totalColumns - 1} style={{ textAlign: 'center' }}>
+        <td colSpan={totalColumns - 1} className="gs-cell-loading">
           Loading…
         </td>
       </tr>
@@ -44,7 +46,7 @@ export function StockRow({
     return (
       <tr>
         <td>{ticker}</td>
-        <td colSpan={totalColumns - 2} style={{ textAlign: 'center', color: 'red' }}>
+        <td colSpan={totalColumns - 2} className="gs-cell-error">
           Error loading data
         </td>
         <td>
@@ -52,6 +54,7 @@ export function StockRow({
             onClick={() => onRemove(ticker)}
             aria-label={`Remove ${ticker}`}
             type="button"
+            className="gs-remove-btn"
           >
             ✕
           </button>
@@ -76,8 +79,9 @@ export function StockRow({
         }
 
         const value = data ? data[col.key] : null;
+        const isNumeric = NUMERIC_TYPES.has(col.type);
         return (
-          <td key={col.key}>
+          <td key={col.key} className={isNumeric ? 'gs-cell-number' : undefined}>
             {formatValue(value, col.type)}
           </td>
         );
@@ -87,6 +91,7 @@ export function StockRow({
           onClick={() => onRemove(ticker)}
           aria-label={`Remove ${ticker}`}
           type="button"
+          className="gs-remove-btn"
         >
           ✕
         </button>

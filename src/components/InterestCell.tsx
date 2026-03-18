@@ -15,7 +15,7 @@ export function InterestCell({ ticker, value, onChange }: InterestCellProps) {
       value={value}
       onChange={(e) => onChange(ticker, e.target.value)}
       aria-label={`Interest for ${ticker}`}
-      style={{ width: '80px' }}
+      className="gs-interest-input"
     />
   );
 }

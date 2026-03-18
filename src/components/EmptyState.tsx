@@ -24,7 +24,7 @@ export function EmptyState({ onAddTicker }: EmptyStateProps) {
   };
 
   return (
-    <div role="status" aria-label="Empty state">
+    <div role="status" aria-label="Empty state" className="gs-empty">
       <p>No tickers configured. Add a ticker to get started.</p>
       <form onSubmit={handleSubmit} aria-label="Add ticker">
         <input

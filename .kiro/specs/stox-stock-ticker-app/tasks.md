@@ -66,13 +66,13 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 6. Implement localStorage services and ticker/interest hooks
-  - [-] 6.1 Create `src/services/localStorageService.ts`
+  - [x] 6.1 Create `src/services/localStorageService.ts`
     - Implement `getTickerList()` / `setTickerList(tickers: string[])` using key `stox:tickers`
     - Implement `getInterestMap()` / `setInterestMap(map: Record<string, string>)` using key `stox:interest`
     - Gracefully handle localStorage unavailability (fall back to in-memory)
     - Run `git add -A && git commit -m "feat: implement localStorage service"`
     - _Requirements: 8.1, 8.2, 8.3, 12.3_
-  - [ ] 6.2 Create `src/hooks/useTickerList.ts`
+  - [-] 6.2 Create `src/hooks/useTickerList.ts`
     - Return `[tickers, addTicker, removeTicker]`
     - `addTicker`: reject empty strings and duplicates, return validation error message
     - `removeTicker`: remove symbol, persist updated list

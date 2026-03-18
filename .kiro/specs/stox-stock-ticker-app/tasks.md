@@ -26,7 +26,7 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - _Requirements: 2.2, 2.3_
 
 - [ ] 3. Implement number formatting utilities
-  - [-] 3.1 Create `src/utils/formatters.ts`
+  - [x] 3.1 Create `src/utils/formatters.ts`
     - Implement `formatCurrency(value)` — `$X.XX`, parentheses for negatives
     - Implement `formatPercent(value)` — `X.XX%`
     - Implement `formatRatio(value)` — `X.XX`, parentheses for negatives
@@ -46,7 +46,7 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
 
 - [ ] 4. Implement computed column logic
-  - [ ] 4.1 Create `src/utils/computeStockRow.ts`
+  - [-] 4.1 Create `src/utils/computeStockRow.ts`
     - Implement `computeStockRow(raw: RawStockData, interest: string): StockRowData`
     - bookValue = (totalAssets - liabilitiesTotal) / sharesOutstanding
     - tangibleBookValue = bookValue - (goodwillNet + intangiblesNet) / sharesOutstanding

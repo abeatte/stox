@@ -119,8 +119,8 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Run `git add -A && git commit -m "feat: implement useStockData hook with TanStack Query"`
     - _Requirements: 3.4, 6.1, 6.2_
 
-- [ ] 9. Implement search, sort, and filter logic
-  - [-] 9.1 Create `src/hooks/useTableState.ts`
+- [x] 9. Implement search, sort, and filter logic
+  - [x] 9.1 Create `src/hooks/useTableState.ts`
     - Manage `searchQuery`, `sortColumn`, `sortDirection` state
     - Implement `filterTickers(tickers, query)` — case-insensitive substring match on ticker symbol
     - Implement `sortRows(rows, column, direction)` — numeric sort for numeric columns, alpha for text columns
@@ -134,7 +134,7 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - **Validates: Requirements 10.2, 10.3, 10.5, 10.6, 10.7**
 
 - [ ] 10. Implement CSV export
-  - [ ] 10.1 Create `src/utils/csvExporter.ts`
+  - [-] 10.1 Create `src/utils/csvExporter.ts`
     - Implement `generateCsv(rows: StockRowData[]): string` — header row with all 19 column labels in order, one data row per StockRowData with formatted values
     - Implement `buildExportFilename(): string` — `stox-export-{ISO8601}.csv`
     - Implement `downloadCsv(csvString, filename)` — trigger browser download via Blob/URL

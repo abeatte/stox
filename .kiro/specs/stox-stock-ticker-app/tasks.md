@@ -133,8 +133,8 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - **Property 10: Sorting produces correct order and is reversible**
     - **Validates: Requirements 10.2, 10.3, 10.5, 10.6, 10.7**
 
-- [ ] 10. Implement CSV export
-  - [-] 10.1 Create `src/utils/csvExporter.ts`
+- [x] 10. Implement CSV export
+  - [x] 10.1 Create `src/utils/csvExporter.ts`
     - Implement `generateCsv(rows: StockRowData[]): string` — header row with all 19 column labels in order, one data row per StockRowData with formatted values
     - Implement `buildExportFilename(): string` — `stox-export-{ISO8601}.csv`
     - Implement `downloadCsv(csvString, filename)` — trigger browser download via Blob/URL
@@ -150,11 +150,11 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Test known input → known CSV output string
     - _Requirements: 9.2, 9.3_
 
-- [ ] 11. Checkpoint
+- [x] 11. Checkpoint
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 12. Build UI components and wire everything together
-  - [ ] 12.1 Create `App.tsx` with QueryClientProvider and top-level layout
+  - [-] 12.1 Create `App.tsx` with QueryClientProvider and top-level layout
     - Set up TanStack Query `QueryClient`
     - Render `TickerTable` or `EmptyState` based on ticker list
     - Run `git add -A && git commit -m "feat: create App.tsx with QueryClientProvider"`

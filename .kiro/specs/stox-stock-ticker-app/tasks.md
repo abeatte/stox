@@ -18,15 +18,15 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Run `git add -A && git commit -m "chore: initialize git repo with .gitignore"`
     - _Requirements: 1.4_
 
-- [ ] 2. Implement data models, types, and column definitions
-  - [ ] 2.1 Create TypeScript interfaces and column metadata
+- [x] 2. Implement data models, types, and column definitions
+  - [x] 2.1 Create TypeScript interfaces and column metadata
     - Define `RawStockData`, `StockRowData`, `ColumnKey`, `ColumnDef` in `src/types.ts`
     - Define the 19-column `COLUMNS` array with label, type, and sortType in `src/columns.ts`
     - Run `git add -A && git commit -m "feat: add data models, types, and column definitions"`
     - _Requirements: 2.2, 2.3_
 
 - [ ] 3. Implement number formatting utilities
-  - [ ] 3.1 Create `src/utils/formatters.ts`
+  - [-] 3.1 Create `src/utils/formatters.ts`
     - Implement `formatCurrency(value)` — `$X.XX`, parentheses for negatives
     - Implement `formatPercent(value)` — `X.XX%`
     - Implement `formatRatio(value)` — `X.XX`, parentheses for negatives

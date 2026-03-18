@@ -257,8 +257,9 @@ describe('Stox Integration Tests', () => {
       const user = userEvent.setup();
       renderApp();
 
+      // Wait for data to load before clicking remove
       await waitFor(() => {
-        expect(screen.getByLabelText('Remove AAPL')).toBeInTheDocument();
+        expect(screen.getByText('$185.50')).toBeInTheDocument();
       });
 
       await user.click(screen.getByLabelText('Remove AAPL'));

@@ -35,8 +35,18 @@ export function StockRow({
     return (
       <tr>
         <td>{ticker}</td>
-        <td colSpan={totalColumns - 1} className="gs-cell-loading">
+        <td colSpan={totalColumns - 2} className="gs-cell-loading">
           Loading…
+        </td>
+        <td>
+          <button
+            onClick={() => onRemove(ticker)}
+            aria-label={`Remove ${ticker}`}
+            type="button"
+            className="gs-remove-btn"
+          >
+            ✕
+          </button>
         </td>
       </tr>
     );

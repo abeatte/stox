@@ -159,13 +159,13 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Render `TickerTable` or `EmptyState` based on ticker list
     - Run `git add -A && git commit -m "feat: create App.tsx with QueryClientProvider"`
     - _Requirements: 1.1, 1.2, 5.3_
-  - [-] 12.2 Create `ToolBar` component
+  - [x] 12.2 Create `ToolBar` component
     - Render `SearchInput`, `AddTickerForm`, and `ExportButton`
     - `AddTickerForm`: text input + submit button, show validation messages for empty/duplicate
     - `ExportButton`: disabled with tooltip when no data
     - Run `git add -A && git commit -m "feat: create ToolBar component"`
     - _Requirements: 9.1, 11.1, 11.2, 11.3, 9.5_
-  - [ ] 12.3 Create `TableHeader` component
+  - [-] 12.3 Create `TableHeader` component
     - Render 19 column headers from `COLUMNS` array
     - Click to sort; toggle asc/desc on repeated click
     - Show visual sort direction indicator on active column

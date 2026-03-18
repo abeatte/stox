@@ -10,16 +10,19 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
   - [x] 1.1 Initialize Vite + React + TypeScript project
     - Run `npm create vite@latest` with React-TS template, install dependencies: `@tanstack/react-query`, `fast-check` (dev), `vitest` (dev), `@testing-library/react` (dev), `jsdom` (dev)
     - Configure `vitest` in `vite.config.ts`
+    - Run `git add -A && git commit -m "feat: scaffold Vite + React + TypeScript project"`
     - _Requirements: 1.1, 1.2, 1.3_
   - [x] 1.2 Initialize Git repo with `.gitignore`
     - Create `.gitignore` for Node/React (node_modules, dist, .env, coverage, etc.)
     - Run `git init`
+    - Run `git add -A && git commit -m "chore: initialize git repo with .gitignore"`
     - _Requirements: 1.4_
 
 - [ ] 2. Implement data models, types, and column definitions
   - [ ] 2.1 Create TypeScript interfaces and column metadata
     - Define `RawStockData`, `StockRowData`, `ColumnKey`, `ColumnDef` in `src/types.ts`
     - Define the 19-column `COLUMNS` array with label, type, and sortType in `src/columns.ts`
+    - Run `git add -A && git commit -m "feat: add data models, types, and column definitions"`
     - _Requirements: 2.2, 2.3_
 
 - [ ] 3. Implement number formatting utilities
@@ -29,6 +32,7 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Implement `formatRatio(value)` — `X.XX`, parentheses for negatives
     - Implement `formatLargeNumber(value)` — abbreviated K/M/B/T with `$` prefix
     - Implement `formatValue(value, type)` dispatcher that returns `"N/A"` for null/undefined
+    - Run `git add -A && git commit -m "feat: implement number formatting utilities"`
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
   - [ ]* 3.2 Write property test: negative values use parentheses notation
     - **Property 3: Negative values use parentheses notation**
@@ -49,6 +53,7 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - pBook = price / bookValue; pTangbook = price / tangibleBookValue
     - eps20x = 20 * eps; eps15x = 15 * eps; priceEarnings = price / eps
     - Return `null` for any computed field when divisor is 0 or inputs are null
+    - Run `git add -A && git commit -m "feat: implement computed column logic"`
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9_
   - [ ]* 4.2 Write property test: computed columns consistent with raw data
     - **Property 1: Computed columns are consistent with raw data**
@@ -65,15 +70,18 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Implement `getTickerList()` / `setTickerList(tickers: string[])` using key `stox:tickers`
     - Implement `getInterestMap()` / `setInterestMap(map: Record<string, string>)` using key `stox:interest`
     - Gracefully handle localStorage unavailability (fall back to in-memory)
+    - Run `git add -A && git commit -m "feat: implement localStorage service"`
     - _Requirements: 8.1, 8.2, 8.3, 12.3_
   - [ ] 6.2 Create `src/hooks/useTickerList.ts`
     - Return `[tickers, addTicker, removeTicker]`
     - `addTicker`: reject empty strings and duplicates, return validation error message
     - `removeTicker`: remove symbol, persist updated list
+    - Run `git add -A && git commit -m "feat: implement useTickerList hook"`
     - _Requirements: 5.1, 5.3, 8.1, 8.4, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
   - [ ] 6.3 Create `src/hooks/useInterestMap.ts`
     - Return `[interestMap, setInterest]`
     - Persist on every change
+    - Run `git add -A && git commit -m "feat: implement useInterestMap hook"`
     - _Requirements: 12.1, 12.2, 12.3_
   - [ ]* 6.4 Write property test: ticker list localStorage round-trip
     - **Property 4: Ticker list localStorage round-trip**
@@ -103,10 +111,12 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Define abstract `StockDataAdapter` interface with `fetchStock(ticker: string): Promise<RawStockData>`
     - Implement a concrete adapter (Yahoo Finance JSON via Vite dev-proxy or Google Finance scraping)
     - Configure Vite proxy in `vite.config.ts` if using Yahoo Finance
+    - Run `git add -A && git commit -m "feat: implement StockDataAdapter service"`
     - _Requirements: 3.1, 3.2, 3.3_
   - [ ] 8.2 Create `src/hooks/useStockData.ts`
     - Use TanStack Query `useQuery` per ticker with `refetchInterval: 60000`
     - Return `{ data: RawStockData | null, isLoading, isError }`
+    - Run `git add -A && git commit -m "feat: implement useStockData hook with TanStack Query"`
     - _Requirements: 3.4, 6.1, 6.2_
 
 - [ ] 9. Implement search, sort, and filter logic
@@ -114,6 +124,7 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Manage `searchQuery`, `sortColumn`, `sortDirection` state
     - Implement `filterTickers(tickers, query)` — case-insensitive substring match on ticker symbol
     - Implement `sortRows(rows, column, direction)` — numeric sort for numeric columns, alpha for text columns
+    - Run `git add -A && git commit -m "feat: implement search, sort, and filter logic"`
     - _Requirements: 10.1, 10.2, 10.3, 10.5, 10.6, 10.7_
   - [ ]* 9.2 Write property test: search filter is case-insensitive and non-destructive
     - **Property 9: Search filter is case-insensitive and non-destructive**
@@ -127,6 +138,7 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Implement `generateCsv(rows: StockRowData[]): string` — header row with all 19 column labels in order, one data row per StockRowData with formatted values
     - Implement `buildExportFilename(): string` — `stox-export-{ISO8601}.csv`
     - Implement `downloadCsv(csvString, filename)` — trigger browser download via Blob/URL
+    - Run `git add -A && git commit -m "feat: implement CSV export utilities"`
     - _Requirements: 9.2, 9.3, 9.4, 12.4_
   - [ ]* 10.2 Write property test: CSV export contains all rows and all 19 columns
     - **Property 11: CSV export contains all rows and all 19 columns**
@@ -145,35 +157,42 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
   - [ ] 12.1 Create `App.tsx` with QueryClientProvider and top-level layout
     - Set up TanStack Query `QueryClient`
     - Render `TickerTable` or `EmptyState` based on ticker list
+    - Run `git add -A && git commit -m "feat: create App.tsx with QueryClientProvider"`
     - _Requirements: 1.1, 1.2, 5.3_
   - [ ] 12.2 Create `ToolBar` component
     - Render `SearchInput`, `AddTickerForm`, and `ExportButton`
     - `AddTickerForm`: text input + submit button, show validation messages for empty/duplicate
     - `ExportButton`: disabled with tooltip when no data
+    - Run `git add -A && git commit -m "feat: create ToolBar component"`
     - _Requirements: 9.1, 11.1, 11.2, 11.3, 9.5_
   - [ ] 12.3 Create `TableHeader` component
     - Render 19 column headers from `COLUMNS` array
     - Click to sort; toggle asc/desc on repeated click
     - Show visual sort direction indicator on active column
+    - Run `git add -A && git commit -m "feat: create TableHeader component"`
     - _Requirements: 2.3, 10.2, 10.3, 10.4_
   - [ ] 12.4 Create `StockRow` component
     - Render one row per ticker with formatted values using `formatValue()`
     - Show loading indicator while data is fetching
     - Show error indicator on fetch failure
     - Include remove button
+    - Run `git add -A && git commit -m "feat: create StockRow component"`
     - _Requirements: 2.1, 2.2, 3.2, 3.3, 3.5, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 11.4, 11.6_
   - [ ] 12.5 Create `InterestCell` component
     - Editable inline text input
     - Persist on change via `useInterestMap`
+    - Run `git add -A && git commit -m "feat: create InterestCell component"`
     - _Requirements: 12.1, 12.2, 12.3_
   - [ ] 12.6 Create `TickerTable` component
     - Compose `ToolBar`, `TableHeader`, and `StockRow[]`
     - Horizontally scrollable container
     - Wire `useTickerList`, `useInterestMap`, `useStockData`, `useTableState`
     - Apply search filter and sort to rows before rendering
+    - Run `git add -A && git commit -m "feat: create TickerTable component"`
     - _Requirements: 2.1, 2.4, 6.2, 6.3, 8.4, 10.1, 10.7_
-  - [ ] 12.7 Create `EmptyState` component
+  - [~] 12.7 Create `EmptyState` component
     - Display message: "No tickers configured. Add a ticker above."
+    - Run `git add -A && git commit -m "feat: create EmptyState component"`
     - _Requirements: 5.3, 8.3_
 
 - [ ] 13. Final checkpoint

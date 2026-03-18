@@ -195,7 +195,7 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Run `git add -A && git commit -m "feat: create EmptyState component"`
     - _Requirements: 5.3, 8.3_
 
-- [-] 13. Final checkpoint
+- [x] 13. Final checkpoint
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

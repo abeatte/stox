@@ -6,11 +6,11 @@ import { EmptyState } from './components/EmptyState';
 const queryClient = new QueryClient();
 
 function AppContent() {
-  const [tickers] = useTickerList();
+  const [tickers, addTicker] = useTickerList();
 
   return (
     <main>
-      {tickers.length > 0 ? <TickerTable /> : <EmptyState />}
+      {tickers.length > 0 ? <TickerTable /> : <EmptyState onAddTicker={addTicker} />}
     </main>
   );
 }

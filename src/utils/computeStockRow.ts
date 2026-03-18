@@ -37,8 +37,8 @@ export function computeStockRow(
   } = raw;
 
   // bookValue = (totalAssets - liabilitiesTotal) / sharesOutstanding
-  // null when sharesOutstanding is 0 or null, or when totalAssets or liabilitiesTotal is null
-  const bookValue: number | null =
+  // Falls back to Yahoo's pre-computed bookValue per share when balance sheet data is unavailable
+  let bookValue: number | null =
     totalAssets !== null &&
     liabilitiesTotal !== null &&
     sharesOutstanding !== null &&
@@ -46,9 +46,16 @@ export function computeStockRow(
       ? (totalAssets - liabilitiesTotal) / sharesOutstanding
       : null;
 
+  if (bookValue === null && raw.bookValue != null) {
+    bookValue = raw.bookValue;
+  }
+
   // pBook = price / bookValue
-  // null when bookValue is 0 or null, or price is null
-  const pBook: number | null = safeDivide(price, bookValue);
+  // Falls back to Yahoo's pre-computed priceToBook when computed value is unavailable
+  let pBook: number | null = safeDivide(price, bookValue);
+  if (pBook === null && raw.priceToBook != null) {
+    pBook = raw.priceToBook;
+  }
 
   // tangibleBookValue = bookValue - (goodwillNet + intangiblesNet) / sharesOutstanding
   // null when any input is null or sharesOutstanding is 0

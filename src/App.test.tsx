@@ -9,7 +9,7 @@ describe('App', () => {
 
   it('renders EmptyState when no tickers are configured', () => {
     render(<App />);
-    expect(screen.getByText('No tickers configured. Add a ticker above.')).toBeInTheDocument();
+    expect(screen.getByText('No tickers configured. Add a ticker to get started.')).toBeInTheDocument();
   });
 
   it('renders TickerTable when tickers exist', () => {

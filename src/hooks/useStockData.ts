@@ -4,7 +4,9 @@ import type { RawStockData } from '../types';
 
 /**
  * TanStack Query wrapper that fetches stock data for a single ticker.
- * Automatically refreshes every 60 seconds.
+ * - Retries with exponential backoff (2s, 4s, 8s) to handle 429s
+ * - Refetches every 5 minutes (stale data is fine for this use case)
+ * - staleTime prevents unnecessary refetches when components remount
  */
 export function useStockData(ticker: string): {
   data: RawStockData | null;
@@ -14,8 +16,11 @@ export function useStockData(ticker: string): {
   const { data, isLoading, isError } = useQuery<RawStockData>({
     queryKey: ['stock', ticker],
     queryFn: () => stockDataAdapter.fetchStock(ticker),
-    refetchInterval: 60000,
     enabled: ticker.trim().length > 0,
+    staleTime: 5 * 60 * 1000,        // 5 min — don't refetch on remount
+    refetchInterval: 5 * 60 * 1000,   // 5 min between auto-refreshes
+    retry: 3,
+    retryDelay: (attempt) => Math.min(2000 * 2 ** attempt, 30000),
   });
 
   return {

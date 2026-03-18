@@ -14,6 +14,10 @@ export interface RawStockData {
   liabilitiesTotal: number | null;
   sharesOutstanding: number | null;
   dividendPercent: number | null;
+  /** Pre-computed book value per share (from Yahoo). Used as fallback when balance sheet data is unavailable. */
+  bookValue?: number | null;
+  /** Pre-computed price-to-book ratio (from Yahoo). Used as fallback when balance sheet data is unavailable. */
+  priceToBook?: number | null;
 }
 
 /**

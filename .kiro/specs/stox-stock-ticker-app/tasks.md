@@ -72,13 +72,13 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Gracefully handle localStorage unavailability (fall back to in-memory)
     - Run `git add -A && git commit -m "feat: implement localStorage service"`
     - _Requirements: 8.1, 8.2, 8.3, 12.3_
-  - [-] 6.2 Create `src/hooks/useTickerList.ts`
+  - [x] 6.2 Create `src/hooks/useTickerList.ts`
     - Return `[tickers, addTicker, removeTicker]`
     - `addTicker`: reject empty strings and duplicates, return validation error message
     - `removeTicker`: remove symbol, persist updated list
     - Run `git add -A && git commit -m "feat: implement useTickerList hook"`
     - _Requirements: 5.1, 5.3, 8.1, 8.4, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
-  - [ ] 6.3 Create `src/hooks/useInterestMap.ts`
+  - [-] 6.3 Create `src/hooks/useInterestMap.ts`
     - Return `[interestMap, setInterest]`
     - Persist on every change
     - Run `git add -A && git commit -m "feat: implement useInterestMap hook"`

@@ -107,13 +107,13 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 8. Implement StockDataAdapter and useStockData hook
-  - [-] 8.1 Create `src/services/stockDataAdapter.ts`
+  - [x] 8.1 Create `src/services/stockDataAdapter.ts`
     - Define abstract `StockDataAdapter` interface with `fetchStock(ticker: string): Promise<RawStockData>`
     - Implement a concrete adapter (Yahoo Finance JSON via Vite dev-proxy or Google Finance scraping)
     - Configure Vite proxy in `vite.config.ts` if using Yahoo Finance
     - Run `git add -A && git commit -m "feat: implement StockDataAdapter service"`
     - _Requirements: 3.1, 3.2, 3.3_
-  - [ ] 8.2 Create `src/hooks/useStockData.ts`
+  - [-] 8.2 Create `src/hooks/useStockData.ts`
     - Use TanStack Query `useQuery` per ticker with `refetchInterval: 60000`
     - Return `{ data: RawStockData | null, isLoading, isError }`
     - Run `git add -A && git commit -m "feat: implement useStockData hook with TanStack Query"`

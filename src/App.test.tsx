@@ -15,6 +15,6 @@ describe('App', () => {
   it('renders TickerTable when tickers exist', () => {
     localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
     render(<App />);
-    expect(screen.getByText('Ticker table placeholder')).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Ticker table' })).toBeInTheDocument();
   });
 });

@@ -183,14 +183,14 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Persist on change via `useInterestMap`
     - Run `git add -A && git commit -m "feat: create InterestCell component"`
     - _Requirements: 12.1, 12.2, 12.3_
-  - [-] 12.6 Create `TickerTable` component
+  - [x] 12.6 Create `TickerTable` component
     - Compose `ToolBar`, `TableHeader`, and `StockRow[]`
     - Horizontally scrollable container
     - Wire `useTickerList`, `useInterestMap`, `useStockData`, `useTableState`
     - Apply search filter and sort to rows before rendering
     - Run `git add -A && git commit -m "feat: create TickerTable component"`
     - _Requirements: 2.1, 2.4, 6.2, 6.3, 8.4, 10.1, 10.7_
-  - [~] 12.7 Create `EmptyState` component
+  - [-] 12.7 Create `EmptyState` component
     - Display message: "No tickers configured. Add a ticker above."
     - Run `git add -A && git commit -m "feat: create EmptyState component"`
     - _Requirements: 5.3, 8.3_

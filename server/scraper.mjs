@@ -7,7 +7,7 @@ import puppeteer from 'puppeteer';
 
 // Cache: ticker -> { data, timestamp }
 const cache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 60 * 60 * 1000; // 60 minutes
 
 // Throttle between requests
 let lastRequest = 0;

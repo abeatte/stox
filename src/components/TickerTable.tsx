@@ -91,16 +91,25 @@ export function TickerTable() {
     [tickers, searchQuery, filterTickers],
   );
 
-  // Build sorted ticker order using collected row data
+  // Build sorted ticker order using collected row data.
+  // Tickers still loading / errored are appended at the bottom.
   const sortedTickers = useMemo(() => {
     if (!sortColumn) return filteredTickers;
 
-    const rows = filteredTickers
-      .map((t) => rowDataMap.get(t))
-      .filter((r): r is StockRowData => r !== null && r !== undefined);
+    const withData: StockRowData[] = [];
+    const withoutData: string[] = [];
 
-    const sorted = sortRows(rows, sortColumn, sortDirection);
-    return sorted.map((r) => r.ticker);
+    for (const t of filteredTickers) {
+      const row = rowDataMap.get(t);
+      if (row) {
+        withData.push(row);
+      } else {
+        withoutData.push(t);
+      }
+    }
+
+    const sorted = sortRows(withData, sortColumn, sortDirection);
+    return [...sorted.map((r) => r.ticker), ...withoutData];
   }, [filteredTickers, sortColumn, sortDirection, sortRows, rowDataMap]);
 
   // Export handler

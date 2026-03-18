@@ -153,7 +153,7 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
 - [x] 11. Checkpoint
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 12. Build UI components and wire everything together
+- [x] 12. Build UI components and wire everything together
   - [x] 12.1 Create `App.tsx` with QueryClientProvider and top-level layout
     - Set up TanStack Query `QueryClient`
     - Render `TickerTable` or `EmptyState` based on ticker list
@@ -190,12 +190,12 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Apply search filter and sort to rows before rendering
     - Run `git add -A && git commit -m "feat: create TickerTable component"`
     - _Requirements: 2.1, 2.4, 6.2, 6.3, 8.4, 10.1, 10.7_
-  - [-] 12.7 Create `EmptyState` component
+  - [x] 12.7 Create `EmptyState` component
     - Display message: "No tickers configured. Add a ticker above."
     - Run `git add -A && git commit -m "feat: create EmptyState component"`
     - _Requirements: 5.3, 8.3_
 
-- [ ] 13. Final checkpoint
+- [-] 13. Final checkpoint
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

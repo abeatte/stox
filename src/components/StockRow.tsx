@@ -44,8 +44,17 @@ export function StockRow({
     return (
       <tr>
         <td>{ticker}</td>
-        <td colSpan={totalColumns - 1} style={{ textAlign: 'center', color: 'red' }}>
+        <td colSpan={totalColumns - 2} style={{ textAlign: 'center', color: 'red' }}>
           Error loading data
+        </td>
+        <td>
+          <button
+            onClick={() => onRemove(ticker)}
+            aria-label={`Remove ${ticker}`}
+            type="button"
+          >
+            ✕
+          </button>
         </td>
       </tr>
     );

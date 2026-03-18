@@ -1,6 +1,7 @@
 import { COLUMNS } from '../columns';
 import { StockRowData } from '../types';
 import { formatValue } from '../utils/formatters';
+import { InterestCell } from './InterestCell';
 
 export interface StockRowProps {
   ticker: string;
@@ -56,12 +57,10 @@ export function StockRow({
         if (col.key === 'interest') {
           return (
             <td key={col.key}>
-              <input
-                type="text"
+              <InterestCell
+                ticker={ticker}
                 value={interest}
-                onChange={(e) => onInterestChange(ticker, e.target.value)}
-                aria-label={`Interest for ${ticker}`}
-                style={{ width: '80px' }}
+                onChange={onInterestChange}
               />
             </td>
           );

@@ -171,14 +171,14 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Show visual sort direction indicator on active column
     - Run `git add -A && git commit -m "feat: create TableHeader component"`
     - _Requirements: 2.3, 10.2, 10.3, 10.4_
-  - [-] 12.4 Create `StockRow` component
+  - [x] 12.4 Create `StockRow` component
     - Render one row per ticker with formatted values using `formatValue()`
     - Show loading indicator while data is fetching
     - Show error indicator on fetch failure
     - Include remove button
     - Run `git add -A && git commit -m "feat: create StockRow component"`
     - _Requirements: 2.1, 2.2, 3.2, 3.3, 3.5, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 11.4, 11.6_
-  - [ ] 12.5 Create `InterestCell` component
+  - [-] 12.5 Create `InterestCell` component
     - Editable inline text input
     - Persist on change via `useInterestMap`
     - Run `git add -A && git commit -m "feat: create InterestCell component"`

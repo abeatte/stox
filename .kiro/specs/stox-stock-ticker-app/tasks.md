@@ -65,7 +65,7 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
 - [x] 5. Checkpoint
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Implement localStorage services and ticker/interest hooks
+- [x] 6. Implement localStorage services and ticker/interest hooks
   - [x] 6.1 Create `src/services/localStorageService.ts`
     - Implement `getTickerList()` / `setTickerList(tickers: string[])` using key `stox:tickers`
     - Implement `getInterestMap()` / `setInterestMap(map: Record<string, string>)` using key `stox:interest`
@@ -78,7 +78,7 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - `removeTicker`: remove symbol, persist updated list
     - Run `git add -A && git commit -m "feat: implement useTickerList hook"`
     - _Requirements: 5.1, 5.3, 8.1, 8.4, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
-  - [-] 6.3 Create `src/hooks/useInterestMap.ts`
+  - [x] 6.3 Create `src/hooks/useInterestMap.ts`
     - Return `[interestMap, setInterest]`
     - Persist on every change
     - Run `git add -A && git commit -m "feat: implement useInterestMap hook"`
@@ -103,11 +103,11 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Test addTicker validation messages for empty and duplicate input
     - _Requirements: 8.2, 8.3, 11.2, 11.3_
 
-- [ ] 7. Checkpoint
+- [x] 7. Checkpoint
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 8. Implement StockDataAdapter and useStockData hook
-  - [ ] 8.1 Create `src/services/stockDataAdapter.ts`
+  - [-] 8.1 Create `src/services/stockDataAdapter.ts`
     - Define abstract `StockDataAdapter` interface with `fetchStock(ticker: string): Promise<RawStockData>`
     - Implement a concrete adapter (Yahoo Finance JSON via Vite dev-proxy or Google Finance scraping)
     - Configure Vite proxy in `vite.config.ts` if using Yahoo Finance

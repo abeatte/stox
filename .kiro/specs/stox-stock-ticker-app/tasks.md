@@ -25,7 +25,7 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Run `git add -A && git commit -m "feat: add data models, types, and column definitions"`
     - _Requirements: 2.2, 2.3_
 
-- [ ] 3. Implement number formatting utilities
+- [x] 3. Implement number formatting utilities
   - [x] 3.1 Create `src/utils/formatters.ts`
     - Implement `formatCurrency(value)` — `$X.XX`, parentheses for negatives
     - Implement `formatPercent(value)` — `X.XX%`
@@ -45,8 +45,8 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Test N/A for null/undefined inputs
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
 
-- [ ] 4. Implement computed column logic
-  - [-] 4.1 Create `src/utils/computeStockRow.ts`
+- [x] 4. Implement computed column logic
+  - [x] 4.1 Create `src/utils/computeStockRow.ts`
     - Implement `computeStockRow(raw: RawStockData, interest: string): StockRowData`
     - bookValue = (totalAssets - liabilitiesTotal) / sharesOutstanding
     - tangibleBookValue = bookValue - (goodwillNet + intangiblesNet) / sharesOutstanding
@@ -62,11 +62,11 @@ Incrementally build the Stox SPA from project scaffold through data layer, compu
     - Test specific examples: negative book value, zero EPS, all-null fields, normal case
     - _Requirements: 4.7, 4.8, 4.9_
 
-- [ ] 5. Checkpoint
+- [x] 5. Checkpoint
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 6. Implement localStorage services and ticker/interest hooks
-  - [ ] 6.1 Create `src/services/localStorageService.ts`
+  - [-] 6.1 Create `src/services/localStorageService.ts`
     - Implement `getTickerList()` / `setTickerList(tickers: string[])` using key `stox:tickers`
     - Implement `getInterestMap()` / `setInterestMap(map: Record<string, string>)` using key `stox:interest`
     - Gracefully handle localStorage unavailability (fall back to in-memory)

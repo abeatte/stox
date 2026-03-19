@@ -4,10 +4,45 @@
  * - Uses Puppeteer for the balance sheet page (requires JS execution)
  */
 import puppeteer from 'puppeteer';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const CACHE_FILE = resolve(__dirname, '.stock-cache.json');
 
 // Cache: ticker -> { data, timestamp }
 const cache = new Map();
 const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+
+// Load cache from disk on startup
+function loadCache() {
+  try {
+    const raw = readFileSync(CACHE_FILE, 'utf-8');
+    const entries = JSON.parse(raw);
+    let loaded = 0;
+    for (const [key, value] of entries) {
+      if (Date.now() - value.timestamp < CACHE_TTL) {
+        cache.set(key, value);
+        loaded++;
+      }
+    }
+    console.log(`[scraper] Loaded ${loaded} cached tickers from disk`);
+  } catch {
+    // No cache file or invalid — start fresh
+  }
+}
+
+export function saveCache() {
+  try {
+    const entries = [...cache.entries()];
+    writeFileSync(CACHE_FILE, JSON.stringify(entries));
+  } catch (err) {
+    console.warn('[scraper] Failed to save cache:', err.message);
+  }
+}
+
+loadCache();
 
 // Throttle between requests
 let lastRequest = 0;
@@ -260,6 +295,7 @@ export async function fetchTickerData(ticker, signal) {
     };
 
     cache.set(symbol, { data: result, timestamp: Date.now() });
+    saveCache();
     console.log(`[${symbol}] Complete in ${((Date.now() - t0) / 1000).toFixed(1)}s — price: ${result.price}, goodwill: ${result.goodwillNet ?? 'N/A'}`);
     return result;
   } finally {

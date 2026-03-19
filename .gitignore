@@ -33,3 +33,6 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+
+# Server cache
+server/.stock-cache.json

@@ -6,7 +6,7 @@
  * Endpoint: GET /api/stock/:ticker
  */
 import express from 'express';
-import { fetchTickerData, closeBrowser, warmUp } from './scraper.mjs';
+import { fetchTickerData, closeBrowser, warmUp, saveCache } from './scraper.mjs';
 
 const app = express();
 const PORT = 3001;
@@ -74,11 +74,13 @@ app.listen(PORT, () => {
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\n[server] Shutting down...');
+  saveCache();
   await closeBrowser();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
+  saveCache();
   await closeBrowser();
   process.exit(0);
 });

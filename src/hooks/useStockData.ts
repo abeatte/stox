@@ -15,7 +15,7 @@ export function useStockData(ticker: string): {
 } {
   const { data, isLoading, isError } = useQuery<RawStockData>({
     queryKey: ['stock', ticker],
-    queryFn: () => stockDataAdapter.fetchStock(ticker),
+    queryFn: ({ signal }) => stockDataAdapter.fetchStock(ticker, signal),
     enabled: ticker.trim().length > 0,
     staleTime: 5 * 60 * 1000,        // 5 min — don't refetch on remount
     refetchInterval: 5 * 60 * 1000,   // 5 min between auto-refreshes

@@ -6,7 +6,7 @@ import type { RawStockData } from '../types';
  * without affecting consumers.
  */
 export interface StockDataAdapter {
-  fetchStock(ticker: string): Promise<RawStockData>;
+  fetchStock(ticker: string, signal?: AbortSignal): Promise<RawStockData>;
 }
 
 /**
@@ -14,11 +14,11 @@ export interface StockDataAdapter {
  * The proxy uses Puppeteer to scrape Yahoo Finance quote + balance sheet pages.
  */
 export class YahooFinanceAdapter implements StockDataAdapter {
-  async fetchStock(ticker: string): Promise<RawStockData> {
+  async fetchStock(ticker: string, signal?: AbortSignal): Promise<RawStockData> {
     const symbol = ticker.toUpperCase().trim();
-    const url = `/api/stock/${encodeURIComponent(symbol)}`;
+    const url = `http://localhost:3001/api/stock/${encodeURIComponent(symbol)}`;
 
-    const response = await fetch(url);
+    const response = await fetch(url, { signal });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       throw new Error(

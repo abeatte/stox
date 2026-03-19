@@ -11,6 +11,12 @@ import { fetchTickerData, closeBrowser, warmUp } from './scraper.mjs';
 const app = express();
 const PORT = 3001;
 
+// Enable CORS so the browser can connect directly (bypassing Vite proxy)
+app.use((_req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  next();
+});
+
 app.get('/api/stock/:ticker', async (req, res) => {
   const { ticker } = req.params;
 
@@ -20,11 +26,24 @@ app.get('/api/stock/:ticker', async (req, res) => {
   }
 
   try {
+    const abortController = new AbortController();
+    req.on('close', () => {
+      if (!res.writableEnded) {
+        console.log(`[server] Client disconnected, aborting ${ticker.toUpperCase()}`);
+        abortController.abort();
+      }
+    });
+
     console.log(`[server] Fetching ${ticker.toUpperCase()}...`);
-    const data = await fetchTickerData(ticker);
+    const data = await fetchTickerData(ticker, abortController.signal);
     console.log(`[server] Done: ${ticker.toUpperCase()}`);
     res.json(data);
   } catch (err) {
+    if (err.name === 'AbortError') {
+      console.log(`[server] Fetch aborted for ${ticker.toUpperCase()}`);
+      if (!res.headersSent) res.status(499).end();
+      return;
+    }
     console.error(`[server] Error for ${ticker}:`, err.message);
     if (!res.headersSent) {
       res.status(500).json({ error: err.message });

@@ -62,11 +62,11 @@ export async function warmUp() {
 // Quote page — plain HTTP fetch (fast, no browser)
 // ---------------------------------------------------------------------------
 
-async function fetchQuoteSummary(ticker) {
+async function fetchQuoteSummary(ticker, signal) {
   await throttle();
   const url = `https://finance.yahoo.com/quote/${ticker}/`;
   console.log(`[${ticker}] Fetching quote page...`);
-  const resp = await fetch(url, { headers: { 'User-Agent': UA } });
+  const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal });
 
   if (!resp.ok) {
     throw new Error(`Yahoo Finance returned ${resp.status} for ${ticker}`);
@@ -94,7 +94,7 @@ async function fetchQuoteSummary(ticker) {
 // Balance sheet page — Puppeteer (needs JS execution)
 // ---------------------------------------------------------------------------
 
-async function scrapeBalanceSheet(ticker) {
+async function scrapeBalanceSheet(ticker, signal) {
   let browser;
   try {
     browser = await getBrowser();
@@ -106,6 +106,14 @@ async function scrapeBalanceSheet(ticker) {
   const page = await browser.newPage();
   await page.setUserAgent(UA);
   await page.setViewport({ width: 1280, height: 800 });
+
+  // Abort the page if the client disconnects
+  const onAbort = () => {
+    console.log(`[${ticker}] Abort signal received, closing page`);
+    page.close().catch(() => {});
+  };
+  if (signal?.aborted) { await page.close(); return null; }
+  signal?.addEventListener('abort', onAbort, { once: true });
 
   try {
     await throttle();
@@ -155,7 +163,8 @@ async function scrapeBalanceSheet(ticker) {
     console.warn(`[${ticker}] Balance sheet scrape failed: ${err.message}`);
     return null;
   } finally {
-    await page.close();
+    signal?.removeEventListener('abort', onAbort);
+    await page.close().catch(() => {});
   }
 }
 
@@ -185,7 +194,10 @@ function parseNum(raw) {
 // Main export
 // ---------------------------------------------------------------------------
 
-export async function fetchTickerData(ticker) {
+// Active fetch tracking
+let activeFetches = 0;
+
+export async function fetchTickerData(ticker, signal) {
   const symbol = ticker.toUpperCase().trim();
 
   const cached = cache.get(symbol);
@@ -194,58 +206,64 @@ export async function fetchTickerData(ticker) {
     return cached.data;
   }
 
-  console.log(`[${symbol}] Starting data fetch...`);
+  activeFetches++;
+  console.log(`[scraper] ▶ Started ${symbol} (active: ${activeFetches})`);
   const t0 = Date.now();
 
-  // 1. Fast HTTP fetch for quote summary (price, EPS, dividend, book value, etc.)
-  const summary = await fetchQuoteSummary(symbol);
-  const fd = summary.financialData || {};
-  const sd = summary.summaryDetail || {};
-  const ks = summary.defaultKeyStatistics || {};
+  try {
+    // 1. Fast HTTP fetch for quote summary (price, EPS, dividend, book value, etc.)
+    const summary = await fetchQuoteSummary(symbol, signal);
+    const fd = summary.financialData || {};
+    const sd = summary.summaryDetail || {};
+    const ks = summary.defaultKeyStatistics || {};
 
-  const price = rawVal(fd.currentPrice) ?? rawVal(summary.price?.regularMarketPrice);
-  const eps = rawVal(ks.trailingEps);
-  const divRate = rawVal(sd.dividendRate);
-  const divYieldRaw = rawVal(sd.dividendYield);
-  const divYieldPct = divYieldRaw != null ? Math.round(divYieldRaw * 10000) / 100 : null;
-  const bookValue = rawVal(ks.bookValue);
-  const priceToBook = rawVal(ks.priceToBook);
-  const sharesOutstandingQuote = rawVal(ks.sharesOutstanding);
+    const price = rawVal(fd.currentPrice) ?? rawVal(summary.price?.regularMarketPrice);
+    const eps = rawVal(ks.trailingEps);
+    const divRate = rawVal(sd.dividendRate);
+    const divYieldRaw = rawVal(sd.dividendYield);
+    const divYieldPct = divYieldRaw != null ? Math.round(divYieldRaw * 10000) / 100 : null;
+    const bookValue = rawVal(ks.bookValue);
+    const priceToBook = rawVal(ks.priceToBook);
+    const sharesOutstandingQuote = rawVal(ks.sharesOutstanding);
 
-  // 2. Puppeteer scrape for balance sheet (goodwill, intangibles, full assets/liabilities)
-  const bsData = await scrapeBalanceSheet(symbol);
+    // 2. Puppeteer scrape for balance sheet (goodwill, intangibles, full assets/liabilities)
+    const bsData = await scrapeBalanceSheet(symbol, signal);
 
-  // Balance sheet values are in thousands (Yahoo's "All numbers in thousands" header)
-  const K = 1000;
-  const bsTotalAssets = bsData ? parseNum(bsData.totalAssets) : null;
-  const bsGoodwill = bsData ? parseNum(bsData.goodwillNet) : null;
-  const bsIntangibles = bsData ? parseNum(bsData.intangiblesNet) : null;
-  const bsLiabilities = bsData ? parseNum(bsData.liabilitiesTotal) : null;
-  const bsShares = bsData ? parseNum(bsData.sharesOutstanding) : null;
+    // Balance sheet values are in thousands (Yahoo's "All numbers in thousands" header)
+    const K = 1000;
+    const bsTotalAssets = bsData ? parseNum(bsData.totalAssets) : null;
+    const bsGoodwill = bsData ? parseNum(bsData.goodwillNet) : null;
+    const bsIntangibles = bsData ? parseNum(bsData.intangiblesNet) : null;
+    const bsLiabilities = bsData ? parseNum(bsData.liabilitiesTotal) : null;
+    const bsShares = bsData ? parseNum(bsData.sharesOutstanding) : null;
 
-  // Prefer balance sheet values (multiplied by 1000), fall back to quote page derived values
-  const totalDebt = rawVal(fd.totalDebt);
-  const totalEquity = bookValue != null && sharesOutstandingQuote != null
-    ? bookValue * sharesOutstandingQuote : null;
+    // Prefer balance sheet values (multiplied by 1000), fall back to quote page derived values
+    const totalDebt = rawVal(fd.totalDebt);
+    const totalEquity = bookValue != null && sharesOutstandingQuote != null
+      ? bookValue * sharesOutstandingQuote : null;
 
-  const result = {
-    ticker: symbol,
-    price,
-    date: new Date().toISOString().split('T')[0],
-    divYield: divRate,
-    eps,
-    totalAssets: bsTotalAssets != null ? bsTotalAssets * K
-      : (totalEquity != null && totalDebt != null ? totalEquity + totalDebt : null),
-    goodwillNet: bsGoodwill != null ? bsGoodwill * K : null,
-    intangiblesNet: bsIntangibles != null ? bsIntangibles * K : null,
-    liabilitiesTotal: bsLiabilities != null ? bsLiabilities * K : totalDebt,
-    sharesOutstanding: bsShares != null ? bsShares * K : sharesOutstandingQuote,
-    dividendPercent: divYieldPct,
-    bookValue,
-    priceToBook,
-  };
+    const result = {
+      ticker: symbol,
+      price,
+      date: new Date().toISOString().split('T')[0],
+      divYield: divRate,
+      eps,
+      totalAssets: bsTotalAssets != null ? bsTotalAssets * K
+        : (totalEquity != null && totalDebt != null ? totalEquity + totalDebt : null),
+      goodwillNet: bsGoodwill != null ? bsGoodwill * K : null,
+      intangiblesNet: bsIntangibles != null ? bsIntangibles * K : null,
+      liabilitiesTotal: bsLiabilities != null ? bsLiabilities * K : totalDebt,
+      sharesOutstanding: bsShares != null ? bsShares * K : sharesOutstandingQuote,
+      dividendPercent: divYieldPct,
+      bookValue,
+      priceToBook,
+    };
 
-  cache.set(symbol, { data: result, timestamp: Date.now() });
-  console.log(`[${symbol}] Complete in ${((Date.now() - t0) / 1000).toFixed(1)}s — price: ${result.price}, goodwill: ${result.goodwillNet ?? 'N/A'}`);
-  return result;
+    cache.set(symbol, { data: result, timestamp: Date.now() });
+    console.log(`[${symbol}] Complete in ${((Date.now() - t0) / 1000).toFixed(1)}s — price: ${result.price}, goodwill: ${result.goodwillNet ?? 'N/A'}`);
+    return result;
+  } finally {
+    activeFetches--;
+    console.log(`[scraper] ■ Finished ${symbol} in ${((Date.now() - t0) / 1000).toFixed(1)}s (active: ${activeFetches})`);
+  }
 }

@@ -129,6 +129,22 @@ export function StockRow({
         }
 
         const value = data ? data[col.key] : null;
+
+        if (col.key === 'ticker') {
+          return (
+            <td key={col.key}>
+              <a
+                href={`https://finance.yahoo.com/quote/${ticker}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="gs-ticker-link"
+              >
+                {ticker}
+              </a>
+            </td>
+          );
+        }
+
         if (col.key === 'eps' && data) {
           const eps15x = data.eps15x;
           const eps20x = data.eps20x;

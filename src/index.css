@@ -176,12 +176,20 @@ body {
 /* ── Ticker column (bold, like a row header) ── */
 .gs-table tbody td:first-child {
   font-weight: 500;
-  color: #1a73e8;
   background: #f8f9fa;
   border-right: 2px solid #dadce0;
   position: sticky;
   left: 0;
   z-index: 1;
+}
+
+.gs-ticker-link {
+  color: #1a73e8;
+  text-decoration: none;
+}
+
+.gs-ticker-link:hover {
+  text-decoration: underline;
 }
 
 /* ── Numeric cells right-align ── */

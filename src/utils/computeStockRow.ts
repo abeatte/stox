@@ -61,11 +61,9 @@ export function computeStockRow(
   // null when any input is null or sharesOutstanding is 0
   const tangibleBookValue: number | null =
     bookValue !== null &&
-    goodwillNet !== null &&
-    intangiblesNet !== null &&
     sharesOutstanding !== null &&
     sharesOutstanding !== 0
-      ? bookValue - (goodwillNet + intangiblesNet) / sharesOutstanding
+      ? bookValue - ((goodwillNet ?? 0) + (intangiblesNet ?? 0)) / sharesOutstanding
       : null;
 
   // pTangbook = price / tangibleBookValue

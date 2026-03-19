@@ -41,6 +41,9 @@ function AddTickerForm({
       setError(result);
     } else {
       setError(null);
+    }
+    // Clear input unless nothing was added (empty or all duplicates with no new adds)
+    if (!result || result.startsWith('Added')) {
       setInput('');
     }
   };
@@ -49,8 +52,8 @@ function AddTickerForm({
     <form onSubmit={handleSubmit} aria-label="Add ticker">
       <input
         type="text"
-        placeholder="Ticker symbol"
-        aria-label="Ticker symbol"
+        placeholder="AAPL, MSFT, GOOG"
+        aria-label="Ticker symbols, comma separated"
         value={input}
         onChange={(e) => {
           setInput(e.target.value);

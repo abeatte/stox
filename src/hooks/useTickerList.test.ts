@@ -74,7 +74,7 @@ describe('useTickerList', () => {
       act(() => {
         error = result.current[1]('AAPL');
       });
-      expect(error!).toBe('Ticker already in list.');
+      expect(error!).toBe('Already in list: AAPL');
       expect(result.current[0]).toEqual(['AAPL']);
     });
 

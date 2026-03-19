@@ -7,22 +7,36 @@ export function useTickerList(): [string[], (symbol: string) => AddTickerResult,
   const [tickers, setTickers] = useState<string[]>(() => getTickerList());
 
   const addTicker = useCallback((symbol: string): AddTickerResult => {
-    const trimmed = symbol.trim();
-    if (trimmed === '') {
+    const symbols = symbol.split(',').map((s) => s.trim()).filter((s) => s !== '');
+    if (symbols.length === 0) {
       return 'Ticker symbol cannot be empty.';
     }
 
-    const upper = trimmed.toUpperCase();
-
-    // Check current state for duplicates
     const current = getTickerList();
-    if (current.includes(upper)) {
-      return 'Ticker already in list.';
+    const skipped: string[] = [];
+    const toAdd: string[] = [];
+
+    for (const s of symbols) {
+      const upper = s.toUpperCase();
+      if (current.includes(upper) || toAdd.includes(upper)) {
+        skipped.push(upper);
+      } else {
+        toAdd.push(upper);
+      }
     }
 
-    const updated = [...current, upper];
-    setTickerList(updated);
-    setTickers(updated);
+    if (toAdd.length > 0) {
+      const updated = [...current, ...toAdd];
+      setTickerList(updated);
+      setTickers(updated);
+    }
+
+    if (skipped.length > 0 && toAdd.length === 0) {
+      return `Already in list: ${skipped.join(', ')}`;
+    }
+    if (skipped.length > 0) {
+      return `Added ${toAdd.length}, skipped duplicates: ${skipped.join(', ')}`;
+    }
     return null;
   }, []);
 

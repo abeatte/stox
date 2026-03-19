@@ -19,7 +19,7 @@ describe('ToolBar', () => {
   it('renders search input, add form, and export button', () => {
     setup();
     expect(screen.getByLabelText('Search tickers')).toBeInTheDocument();
-    expect(screen.getByLabelText('Ticker symbol')).toBeInTheDocument();
+    expect(screen.getByLabelText('Ticker symbols, comma separated')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument();
   });
@@ -34,7 +34,7 @@ describe('ToolBar', () => {
 
   it('calls onAddTicker on form submit and clears input on success', () => {
     const props = setup();
-    const input = screen.getByLabelText('Ticker symbol');
+    const input = screen.getByLabelText('Ticker symbols, comma separated');
     fireEvent.change(input, { target: { value: 'MSFT' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     expect(props.onAddTicker).toHaveBeenCalledWith('MSFT');
@@ -55,7 +55,7 @@ describe('ToolBar', () => {
     setup({
       onAddTicker: vi.fn(() => 'Ticker already in list.'),
     });
-    const input = screen.getByLabelText('Ticker symbol');
+    const input = screen.getByLabelText('Ticker symbols, comma separated');
     fireEvent.change(input, { target: { value: 'AAPL' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     expect(screen.getByRole('alert')).toHaveTextContent(

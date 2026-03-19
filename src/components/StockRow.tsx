@@ -9,7 +9,7 @@ import { InterestCell } from './InterestCell';
  * Returns a CSS highlight class for specific cells based on value thresholds.
  */
 function getCellHighlight(key: ColumnKey, value: unknown): string | undefined {
-  if (key === 'dividendPercent') {
+  if (key === 'dividendPercent' || key === 'divYield') {
     if (value === null || value === undefined || value === 0) return 'gs-cell-yellow';
   }
 

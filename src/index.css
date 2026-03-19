@@ -106,7 +106,8 @@ body {
 
 /* ── Table wrapper ── */
 .gs-table-wrap {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: calc(100vh - 50px);
   background: #fff;
   border: 1px solid #dadce0;
   border-top: none;
@@ -171,6 +172,13 @@ body {
 
 .gs-table tbody tr:nth-child(even):hover {
   background: #e8f0fe;
+}
+
+/* ── Ticker column header (sticky both axes) ── */
+.gs-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 3;
 }
 
 /* ── Ticker column (bold, like a row header) ── */
@@ -353,8 +361,8 @@ body {
 }
 
 /* ── Column resize handles ── */
+/* NOTE: position: sticky is set in the header block above; do NOT override with relative here */
 .gs-table thead th {
-  position: relative;
   overflow: visible;
 }
 

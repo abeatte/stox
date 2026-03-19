@@ -60,12 +60,35 @@ export function formatLargeNumber(value: number): string {
 }
 
 /**
+ * Format a large number with abbreviated K/M/B/T suffix without $ prefix.
+ * Used for non-monetary counts like shares outstanding.
+ */
+export function formatLargeCount(value: number): string {
+  const abs = Math.abs(value);
+
+  if (abs >= 1e12) {
+    return `${(value / 1e12).toFixed(1)}T`;
+  }
+  if (abs >= 1e9) {
+    return `${(value / 1e9).toFixed(1)}B`;
+  }
+  if (abs >= 1e6) {
+    return `${(value / 1e6).toFixed(1)}M`;
+  }
+  if (abs >= 1e3) {
+    return `${(value / 1e3).toFixed(1)}K`;
+  }
+
+  return `${value}`;
+}
+
+/**
  * Dispatcher that formats a value based on its column type.
  * Returns "N/A" for null or undefined values.
  */
 export function formatValue(
   value: number | string | null | undefined,
-  type: 'text' | 'currency' | 'percent' | 'ratio' | 'large-number',
+  type: 'text' | 'currency' | 'percent' | 'ratio' | 'large-number' | 'large-count',
 ): string {
   if (value === null || value === undefined) {
     return 'N/A';
@@ -88,6 +111,8 @@ export function formatValue(
       return formatRatio(value);
     case 'large-number':
       return formatLargeNumber(value);
+    case 'large-count':
+      return formatLargeCount(value);
     default:
       return String(value);
   }

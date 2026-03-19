@@ -74,6 +74,6 @@ export type ColumnKey =
 export interface ColumnDef {
   key: ColumnKey;
   label: string;
-  type: 'text' | 'currency' | 'percent' | 'ratio' | 'large-number';
+  type: 'text' | 'currency' | 'percent' | 'ratio' | 'large-number' | 'large-count';
   sortType: 'alpha' | 'numeric';
 }

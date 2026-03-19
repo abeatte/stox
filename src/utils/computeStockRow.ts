@@ -94,7 +94,7 @@ export function computeStockRow(
     pBook,
     tangibleBookValue,
     pTangbook,
-    dividendPercent,
+    dividendPercent: dividendPercent ?? 0,
     eps20x,
     eps15x,
     priceEarnings,

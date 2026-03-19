@@ -1,6 +1,8 @@
+import { useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { COLUMNS } from '../columns';
 import { StockRowData, ColumnKey } from '../types';
-import { formatValue } from '../utils/formatters';
+import { formatValue, formatCurrency } from '../utils/formatters';
 import { InterestCell } from './InterestCell';
 
 /**
@@ -56,6 +58,17 @@ export function StockRow({
   onInterestChange,
   onRemove,
 }: StockRowProps) {
+  const [popover, setPopover] = useState<{ x: number; y: number } | null>(null);
+
+  const handleMouseEnter = useCallback((e: React.MouseEvent<HTMLTableCellElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPopover({ x: rect.left + rect.width / 2, y: rect.top });
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setPopover(null);
+  }, []);
+
   const totalColumns = COLUMNS.length + 1; // +1 for the remove button column
 
   if (isLoading && !data) {
@@ -116,6 +129,32 @@ export function StockRow({
         }
 
         const value = data ? data[col.key] : null;
+        if (col.key === 'eps' && data) {
+          const eps15x = data.eps15x;
+          const eps20x = data.eps20x;
+          return (
+            <td
+              key={col.key}
+              className="gs-cell-number gs-eps-cell"
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
+            >
+              {formatValue(value, col.type)}
+              {popover && createPortal(
+                <div
+                  className="gs-eps-popover"
+                  role="tooltip"
+                  style={{ left: popover.x, top: popover.y }}
+                >
+                  <div>15x EPS: {eps15x != null ? formatCurrency(eps15x) : 'N/A'}</div>
+                  <div>20x EPS: {eps20x != null ? formatCurrency(eps20x) : 'N/A'}</div>
+                </div>,
+                document.body,
+              )}
+            </td>
+          );
+        }
+
         const isNumeric = NUMERIC_TYPES.has(col.type);
         const highlight = data ? getCellHighlight(col.key, value) : undefined;
         const className = [isNumeric ? 'gs-cell-number' : '', highlight ?? ''].filter(Boolean).join(' ') || undefined;

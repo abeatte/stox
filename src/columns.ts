@@ -19,8 +19,6 @@ export const COLUMNS: ColumnDef[] = [
   { key: 'tangibleBookValue', label: 'Tangable Book Value', type: 'currency', sortType: 'numeric' },
   { key: 'pTangbook', label: 'P:Tangbook', type: 'ratio', sortType: 'numeric' },
   { key: 'dividendPercent', label: 'Dividend Percent', type: 'percent', sortType: 'numeric' },
-  { key: 'eps20x', label: '20x EPS', type: 'currency', sortType: 'numeric' },
-  { key: 'eps15x', label: '15x EPS', type: 'currency', sortType: 'numeric' },
   { key: 'priceEarnings', label: 'Price/Earnings', type: 'ratio', sortType: 'numeric' },
   { key: 'interest', label: 'Interest', type: 'text', sortType: 'alpha' },
 ];

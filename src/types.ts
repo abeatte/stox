@@ -51,7 +51,6 @@ export interface StockRowData {
 export type ColumnKey =
   | 'ticker'
   | 'price'
-  | 'date'
   | 'divYield'
   | 'eps'
   | 'totalAssets'

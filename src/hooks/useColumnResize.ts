@@ -2,37 +2,19 @@ import { useState, useCallback, useRef } from 'react';
 import { COLUMNS } from '../columns';
 import type { ColumnKey } from '../types';
 
-/** Sensible default widths per column type (px). */
-function defaultWidth(key: ColumnKey): number {
-  switch (key) {
-    case 'ticker':
-      return 80;
-    case 'date':
-      return 100;
-    case 'interest':
-      return 100;
-    case 'sharesOutstanding':
-      return 200;
-    case 'liabilitiesTotal':
-    case 'tangibleBookValue':
-      return 140;
-    case 'totalAssets':
-    case 'goodwillNet':
-    case 'intangiblesNet':
-      return 120;
-    default:
-      return 100;
-  }
-}
+/** Width reserved for the remove-button column (px). */
+const REMOVE_COL_WIDTH = 36;
 
 const MIN_WIDTH = 40;
 /** Extra padding to account for cell padding (10px each side) */
 const AUTOFIT_PAD = 22;
 
 function buildInitialWidths(): Record<ColumnKey, number> {
+  const available = (typeof window !== 'undefined' ? window.innerWidth : 1200) - REMOVE_COL_WIDTH;
+  const perCol = Math.max(MIN_WIDTH, Math.floor(available / COLUMNS.length));
   const map = {} as Record<ColumnKey, number>;
   for (const col of COLUMNS) {
-    map[col.key] = defaultWidth(col.key);
+    map[col.key] = perCol;
   }
   return map;
 }

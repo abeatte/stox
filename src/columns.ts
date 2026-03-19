@@ -6,7 +6,6 @@ import { ColumnDef } from './types';
 export const COLUMNS: ColumnDef[] = [
   { key: 'ticker', label: 'Ticker', type: 'text', sortType: 'alpha' },
   { key: 'price', label: 'Price', type: 'currency', sortType: 'numeric' },
-  { key: 'date', label: 'Date', type: 'text', sortType: 'alpha' },
   { key: 'divYield', label: 'Div Yield', type: 'percent', sortType: 'numeric' },
   { key: 'eps', label: 'EPS', type: 'currency', sortType: 'numeric' },
   { key: 'totalAssets', label: 'Total Assets', type: 'large-number', sortType: 'numeric' },

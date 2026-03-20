@@ -20,7 +20,6 @@ function safeDivide(
  */
 export function computeStockRow(
   raw: RawStockData,
-  interest: string,
 ): StockRowData {
   const {
     ticker,
@@ -98,6 +97,5 @@ export function computeStockRow(
     eps20x,
     eps15x,
     priceEarnings,
-    interest,
   };
 }

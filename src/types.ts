@@ -42,7 +42,6 @@ export interface StockRowData {
   eps20x: number | null;
   eps15x: number | null;
   priceEarnings: number | null;
-  interest: string;
 }
 
 /**
@@ -65,8 +64,7 @@ export type ColumnKey =
   | 'dividendPercent'
   | 'eps20x'
   | 'eps15x'
-  | 'priceEarnings'
-  | 'interest';
+  | 'priceEarnings';
 
 /**
  * Column definition metadata for rendering and sorting.

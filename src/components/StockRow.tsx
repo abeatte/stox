@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { COLUMNS } from '../columns';
 import { StockRowData, ColumnKey } from '../types';
 import { formatValue, formatCurrency } from '../utils/formatters';
-import { InterestCell } from './InterestCell';
 
 /**
  * Returns a CSS highlight class for specific cells based on value thresholds.
@@ -37,8 +36,6 @@ export interface StockRowProps {
   data: StockRowData | null;
   isLoading: boolean;
   isError: boolean;
-  interest: string;
-  onInterestChange: (ticker: string, value: string) => void;
   onRemove: (ticker: string) => void;
 }
 
@@ -54,8 +51,6 @@ export function StockRow({
   data,
   isLoading,
   isError,
-  interest,
-  onInterestChange,
   onRemove,
 }: StockRowProps) {
   const [popover, setPopover] = useState<{ x: number; y: number } | null>(null);
@@ -116,18 +111,6 @@ export function StockRow({
   return (
     <tr>
       {COLUMNS.map((col) => {
-        if (col.key === 'interest') {
-          return (
-            <td key={col.key}>
-              <InterestCell
-                ticker={ticker}
-                value={interest}
-                onChange={onInterestChange}
-              />
-            </td>
-          );
-        }
-
         const value = data ? data[col.key] : null;
 
         if (col.key === 'ticker') {

@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useTickerList } from '../hooks/useTickerList';
-import { useInterestMap } from '../hooks/useInterestMap';
 import { useStockData } from '../hooks/useStockData';
 import { useTableState } from '../hooks/useTableState';
 import { useColumnResize } from '../hooks/useColumnResize';
@@ -18,14 +17,10 @@ import type { StockRowData } from '../types';
  */
 function StockRowWithData({
   ticker,
-  interest,
-  onInterestChange,
   onRemove,
   onData,
 }: {
   ticker: string;
-  interest: string;
-  onInterestChange: (ticker: string, value: string) => void;
   onRemove: (ticker: string) => void;
   onData: (ticker: string, row: StockRowData | null) => void;
 }) {
@@ -33,8 +28,8 @@ function StockRowWithData({
 
   const computed = useMemo(() => {
     if (!data) return null;
-    return computeStockRow(data, interest);
-  }, [data, interest]);
+    return computeStockRow(data);
+  }, [data]);
 
   // Report computed data up to parent for sorting/export.
   // Safe to call during render since onData writes to a mutable ref.
@@ -46,8 +41,6 @@ function StockRowWithData({
       data={computed}
       isLoading={isLoading}
       isError={isError}
-      interest={interest}
-      onInterestChange={onInterestChange}
       onRemove={onRemove}
     />
   );
@@ -60,7 +53,6 @@ function StockRowWithData({
  */
 export function TickerTable() {
   const [tickers, addTicker, removeTicker] = useTickerList();
-  const [interestMap, setInterest] = useInterestMap();
   const {
     searchQuery,
     onSearchChange,
@@ -152,8 +144,6 @@ export function TickerTable() {
               <StockRowWithData
                 key={ticker}
                 ticker={ticker}
-                interest={interestMap[ticker] ?? ''}
-                onInterestChange={setInterest}
                 onRemove={removeTicker}
                 onData={handleRowData}
               />

@@ -1,5 +1,4 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useTickerList } from './hooks/useTickerList';
 import { TickerTable } from './components/TickerTable';
 import { EmptyState } from './components/EmptyState';
@@ -20,7 +19,6 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppContent />
-      <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   );
 }

@@ -12,6 +12,12 @@ function getCellHighlight(key: ColumnKey, value: unknown): string | undefined {
     if (value === null || value === undefined || value === 0) return 'gs-cell-yellow';
   }
 
+  if (key === 'eps') {
+    const n = value as number | null;
+    if (n === null || n === undefined) return undefined;
+    if (n < 0) return 'gs-cell-red';
+  }
+
   if (key === 'pBook' || key === 'pTangbook') {
     const n = value as number | null;
     if (n === null || n === undefined) return undefined;
@@ -25,7 +31,7 @@ function getCellHighlight(key: ColumnKey, value: unknown): string | undefined {
     if (n === null || n === undefined) return undefined;
     if (n >= 0 && n <= 15) return 'gs-cell-green';
     if (n > 15 && n <= 20) return 'gs-cell-yellow';
-    if (n > 20) return 'gs-cell-red';
+    if (n > 20 || n < 0) return 'gs-cell-red';
   }
 
   return undefined;
@@ -128,13 +134,17 @@ export function StockRow({
           );
         }
 
+        const isNumeric = NUMERIC_TYPES.has(col.type);
+        const highlight = data ? getCellHighlight(col.key, value) : undefined;
+        const className = [isNumeric ? 'gs-cell-number' : '', highlight ?? ''].filter(Boolean).join(' ') || undefined;
+
         if (col.key === 'eps' && data) {
           const eps15x = data.eps15x;
           const eps20x = data.eps20x;
           return (
             <td
               key={col.key}
-              className="gs-cell-number gs-eps-cell"
+              className={className}
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
             >
@@ -154,9 +164,6 @@ export function StockRow({
           );
         }
 
-        const isNumeric = NUMERIC_TYPES.has(col.type);
-        const highlight = data ? getCellHighlight(col.key, value) : undefined;
-        const className = [isNumeric ? 'gs-cell-number' : '', highlight ?? ''].filter(Boolean).join(' ') || undefined;
         return (
           <td key={col.key} className={className}>
             {formatValue(value, col.type)}

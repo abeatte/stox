@@ -61,13 +61,19 @@ export function useTableState() {
   const onSort = useCallback(
     (col: ColumnKey) => {
       if (sortColumn === col) {
-        setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+        if (sortDirection === 'asc') {
+          setSortDirection('desc');
+        } else {
+          // Third click: clear the sort
+          setSortColumn(null);
+          setSortDirection('asc');
+        }
       } else {
         setSortColumn(col);
         setSortDirection('asc');
       }
     },
-    [sortColumn],
+    [sortColumn, sortDirection],
   );
 
   const onSearchChange = useCallback((q: string) => {

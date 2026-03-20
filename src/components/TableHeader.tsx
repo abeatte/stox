@@ -57,12 +57,12 @@ export function TableHeader({
                 }
               >
                 <span className="gs-th-content">
-                  {col.label}
                   {isActive && (
                     <span aria-hidden="true" className="gs-sort-arrow">
                       {sortDirection === 'asc' ? '▲' : '▼'}
                     </span>
                   )}
+                  {col.label}
                 </span>
                 {/* Resize handle */}
                 <span

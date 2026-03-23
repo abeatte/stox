@@ -30,6 +30,7 @@ export class YahooFinanceAdapter implements StockDataAdapter {
     return {
       ticker: data.ticker ?? symbol,
       price: toNum(data.price),
+      changePercent: toNum(data.changePercent),
       date: data.date ?? null,
       divYield: toNum(data.divYield),
       eps: toNum(data.eps),

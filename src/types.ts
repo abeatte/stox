@@ -5,6 +5,7 @@
 export interface RawStockData {
   ticker: string;
   price: number | null;
+  changePercent: number | null;
   date: string | null;
   divYield: number | null;
   eps: number | null;
@@ -26,6 +27,7 @@ export interface RawStockData {
 export interface StockRowData {
   ticker: string;
   price: number | null;
+  changePercent: number | null;
   date: string | null;
   divYield: number | null;
   eps: number | null;

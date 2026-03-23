@@ -333,6 +333,8 @@ export async function fetchTickerData(ticker, signal) {
     const ks = summary.defaultKeyStatistics || {};
 
     const price = rawVal(fd.currentPrice) ?? rawVal(summary.price?.regularMarketPrice);
+    const changePercentRaw = rawVal(summary.price?.regularMarketChangePercent);
+    const changePercent = changePercentRaw != null ? Math.round(changePercentRaw * 10000) / 100 : null;
     const eps = rawVal(ks.trailingEps);
     const divRate = rawVal(sd.dividendRate);
     const divYieldRaw = rawVal(sd.dividendYield);
@@ -360,6 +362,7 @@ export async function fetchTickerData(ticker, signal) {
     const result = {
       ticker: symbol,
       price,
+      changePercent,
       date: new Date().toISOString().split('T')[0],
       divYield: divRate,
       eps,

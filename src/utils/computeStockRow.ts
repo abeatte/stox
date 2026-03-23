@@ -35,6 +35,8 @@ export function computeStockRow(
     dividendPercent,
   } = raw;
 
+  const changePercent = raw.changePercent ?? null;
+
   // bookValue = (totalAssets - liabilitiesTotal) / sharesOutstanding
   // Falls back to Yahoo's pre-computed bookValue per share when balance sheet data is unavailable
   let bookValue: number | null =
@@ -81,6 +83,7 @@ export function computeStockRow(
   return {
     ticker,
     price,
+    changePercent,
     date,
     divYield,
     eps,

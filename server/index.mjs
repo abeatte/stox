@@ -64,19 +64,37 @@ app.post('/api/refresh-prices', async (req, res) => {
     return;
   }
 
+  const abortController = new AbortController();
+  res.on('close', () => {
+    if (!res.writableFinished) {
+      console.log('[server] Client disconnected, aborting price refresh');
+      abortController.abort();
+    }
+  });
+
   try {
     const results = [];
     for (const ticker of tickers) {
+      if (abortController.signal.aborted) {
+        console.log(`[server] Refresh aborted, skipping remaining tickers`);
+        break;
+      }
       try {
-        const result = await refreshPrice(ticker, null);
+        const result = await refreshPrice(ticker, abortController.signal);
         results.push(result);
       } catch (err) {
+        if (err.name === 'AbortError') throw err;
         console.warn(`[server] Price refresh failed for ${ticker}:`, err.message);
         results.push({ ticker: ticker.toUpperCase(), price: null, changePercent: null, error: err.message });
       }
     }
-    res.json({ results });
+    if (!res.headersSent) res.json({ results });
   } catch (err) {
+    if (err.name === 'AbortError') {
+      console.log('[server] Refresh prices aborted');
+      if (!res.headersSent) res.status(499).end();
+      return;
+    }
     console.error('[server] Refresh prices error:', err.message);
     if (!res.headersSent) {
       res.status(500).json({ error: err.message });

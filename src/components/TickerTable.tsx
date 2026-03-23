@@ -133,11 +133,23 @@ export function TickerTable() {
     downloadCsv(csv, filename);
   }, [tickers, rowDataMap]);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Abort any in-flight refresh when the component unmounts (browser refresh, navigation, etc.)
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
+
   const handleRefresh = useCallback(async () => {
     if (tickers.length === 0) return;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsRefreshing(true);
     try {
-      const results = await stockDataAdapter.refreshPrices(tickers);
+      const results = await stockDataAdapter.refreshPrices(tickers, controller.signal);
       for (const { ticker, price, changePercent } of results) {
         queryClient.setQueryData<RawStockData>(['stock', ticker], (old) => {
           if (!old) return old;
@@ -145,6 +157,10 @@ export function TickerTable() {
         });
       }
     } catch (err) {
+      if ((err as DOMException).name === 'AbortError') {
+        console.log('Price refresh aborted');
+        return;
+      }
       console.error('Price refresh failed:', err);
     } finally {
       setIsRefreshing(false);

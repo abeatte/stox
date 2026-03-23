@@ -7,7 +7,7 @@ import type { RawStockData } from '../types';
  */
 export interface StockDataAdapter {
   fetchStock(ticker: string, signal?: AbortSignal): Promise<RawStockData>;
-  refreshPrices(tickers: string[]): Promise<{ ticker: string; price: number | null; changePercent: number | null }[]>;
+  refreshPrices(tickers: string[], signal?: AbortSignal): Promise<{ ticker: string; price: number | null; changePercent: number | null }[]>;
 }
 
 /**
@@ -44,11 +44,12 @@ export class YahooFinanceAdapter implements StockDataAdapter {
     };
   }
 
-  async refreshPrices(tickers: string[]): Promise<{ ticker: string; price: number | null; changePercent: number | null }[]> {
+  async refreshPrices(tickers: string[], signal?: AbortSignal): Promise<{ ticker: string; price: number | null; changePercent: number | null }[]> {
     const response = await fetch('http://localhost:3001/api/refresh-prices', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tickers }),
+      signal,
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));

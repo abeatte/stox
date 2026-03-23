@@ -312,6 +312,32 @@ function parseNum(raw) {
 // Active fetch tracking
 let activeFetches = 0;
 
+// ---------------------------------------------------------------------------
+// Lightweight price-only refresh (no Puppeteer, no balance sheet)
+// ---------------------------------------------------------------------------
+
+export async function refreshPrice(ticker, signal) {
+  const symbol = ticker.toUpperCase().trim();
+  console.log(`[${symbol}] Refreshing price...`);
+
+  const summary = await fetchQuoteSummary(symbol, signal);
+  const fd = summary.financialData || {};
+  const price = rawVal(fd.currentPrice) ?? rawVal(summary.price?.regularMarketPrice);
+  const changePercentRaw = rawVal(summary.price?.regularMarketChangePercent);
+  const changePercent = changePercentRaw != null ? Math.round(changePercentRaw * 10000) / 100 : null;
+
+  // Patch the existing cache entry (keep original timestamp so full refresh still triggers on schedule)
+  const cached = cache.get(symbol);
+  if (cached) {
+    cached.data.price = price;
+    cached.data.changePercent = changePercent;
+    saveCache();
+    console.log(`[${symbol}] Price refreshed: ${price} (${changePercent != null ? changePercent.toFixed(2) + '%' : 'N/A'})`);
+  }
+
+  return { ticker: symbol, price, changePercent };
+}
+
 export async function fetchTickerData(ticker, signal) {
   const symbol = ticker.toUpperCase().trim();
 

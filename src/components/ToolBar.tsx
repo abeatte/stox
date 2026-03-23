@@ -6,6 +6,8 @@ export interface ToolBarProps {
   onAddTicker: (symbol: string) => string | null; // returns validation error or null
   onExport: () => void;
   hasData: boolean;
+  onRefresh: () => void;
+  isRefreshing: boolean;
 }
 
 function SearchInput({
@@ -96,12 +98,26 @@ export function ToolBar({
   onAddTicker,
   onExport,
   hasData,
+  onRefresh,
+  isRefreshing,
 }: ToolBarProps) {
   return (
     <div role="toolbar" aria-label="Toolbar" className="gs-toolbar">
       <SearchInput value={searchQuery} onChange={onSearchChange} />
       <AddTickerForm onAddTicker={onAddTicker} />
       <ExportButton onExport={onExport} hasData={hasData} />
+      <div style={{ marginLeft: 'auto' }}>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={isRefreshing || !hasData}
+          aria-label="Refresh prices"
+          title="Refresh current prices"
+          className="gs-btn-refresh"
+        >
+          {isRefreshing ? <><span style={{ fontSize: '1.6em', verticalAlign: 'middle', position: 'relative', top: '-2px' }}>⟳</span> Refreshing…</> : <><span style={{ fontSize: '1.6em', verticalAlign: 'middle', position: 'relative', top: '-2px' }}>⟳</span> Refresh</>}
+        </button>
+      </div>
     </div>
   );
 }

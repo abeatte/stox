@@ -7,6 +7,7 @@ import type { RawStockData } from '../types';
  */
 export interface StockDataAdapter {
   fetchStock(ticker: string, signal?: AbortSignal): Promise<RawStockData>;
+  refreshPrices(tickers: string[]): Promise<{ ticker: string; price: number | null; changePercent: number | null }[]>;
 }
 
 /**
@@ -41,6 +42,24 @@ export class YahooFinanceAdapter implements StockDataAdapter {
       sharesOutstanding: toNum(data.sharesOutstanding),
       dividendPercent: toNum(data.dividendPercent),
     };
+  }
+
+  async refreshPrices(tickers: string[]): Promise<{ ticker: string; price: number | null; changePercent: number | null }[]> {
+    const response = await fetch('http://localhost:3001/api/refresh-prices', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tickers }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || `Refresh failed: ${response.status}`);
+    }
+    const { results } = await response.json();
+    return results.map((r: { ticker: string; price: unknown; changePercent: unknown }) => ({
+      ticker: r.ticker,
+      price: toNum(r.price),
+      changePercent: toNum(r.changePercent),
+    }));
   }
 }
 

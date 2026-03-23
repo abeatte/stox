@@ -1,14 +1,16 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTickerList } from '../hooks/useTickerList';
 import { useStockData } from '../hooks/useStockData';
 import { useTableState } from '../hooks/useTableState';
 import { useColumnResize } from '../hooks/useColumnResize';
 import { computeStockRow } from '../utils/computeStockRow';
 import { generateCsv, buildExportFilename, downloadCsv } from '../utils/csvExporter';
+import { stockDataAdapter } from '../services/stockDataAdapter';
 import { ToolBar } from './ToolBar';
 import { TableHeader } from './TableHeader';
 import { StockRow } from './StockRow';
-import type { StockRowData } from '../types';
+import type { StockRowData, RawStockData } from '../types';
 
 /**
  * Helper component that calls useStockData for a single ticker,
@@ -65,16 +67,30 @@ export function TickerTable() {
 
   const { widths, onResizeStart, onAutoFit, isResizingRef, tableRef } = useColumnResize();
 
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   // Collect computed row data from child components for sorting and export.
   // Using a ref so mutations don't trigger re-renders.
   const rowDataMapRef = useRef(new Map<string, StockRowData | null>());
   const rowDataMap = rowDataMapRef.current;
 
+  const [hasData, setHasData] = useState(false);
+
+  // Reset hasData when all tickers are removed
+  useEffect(() => {
+    if (tickers.length === 0) {
+      rowDataMap.clear();
+      setHasData(false);
+    }
+  }, [tickers.length, rowDataMap]);
+
   const handleRowData = useCallback(
     (ticker: string, row: StockRowData | null) => {
       rowDataMap.set(ticker, row);
+      if (row && !hasData) setHasData(true);
     },
-    [rowDataMap],
+    [rowDataMap, hasData],
   );
 
   // Apply search filter
@@ -117,7 +133,23 @@ export function TickerTable() {
     downloadCsv(csv, filename);
   }, [tickers, rowDataMap]);
 
-  const hasData = tickers.some((t) => rowDataMap.get(t) != null);
+  const handleRefresh = useCallback(async () => {
+    if (tickers.length === 0) return;
+    setIsRefreshing(true);
+    try {
+      const results = await stockDataAdapter.refreshPrices(tickers);
+      for (const { ticker, price, changePercent } of results) {
+        queryClient.setQueryData<RawStockData>(['stock', ticker], (old) => {
+          if (!old) return old;
+          return { ...old, price, changePercent };
+        });
+      }
+    } catch (err) {
+      console.error('Price refresh failed:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [tickers, queryClient]);
 
   return (
     <div>
@@ -127,6 +159,8 @@ export function TickerTable() {
         onAddTicker={addTicker}
         onExport={handleExport}
         hasData={hasData}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
       />
       <div className="gs-table-wrap">
         <table className="gs-table" role="table" aria-label="Ticker table" ref={tableRef}>

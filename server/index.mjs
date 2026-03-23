@@ -6,7 +6,7 @@
  * Endpoint: GET /api/stock/:ticker
  */
 import express from 'express';
-import { fetchTickerData, closeBrowser, warmUp, saveCache } from './scraper.mjs';
+import { fetchTickerData, refreshPrice, closeBrowser, warmUp, saveCache } from './scraper.mjs';
 
 const app = express();
 const PORT = 3001;
@@ -14,8 +14,14 @@ const PORT = 3001;
 // Enable CORS so the browser can connect directly (bypassing Vite proxy)
 app.use((_req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   next();
 });
+
+app.options('/{*path}', (_req, res) => res.sendStatus(204));
+
+app.use(express.json());
 
 app.get('/api/stock/:ticker', async (req, res) => {
   const { ticker } = req.params;
@@ -45,6 +51,33 @@ app.get('/api/stock/:ticker', async (req, res) => {
       return;
     }
     console.error(`[server] Error for ${ticker}:`, err.message);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+});
+
+app.post('/api/refresh-prices', async (req, res) => {
+  const { tickers } = req.body;
+  if (!Array.isArray(tickers) || tickers.length === 0) {
+    res.status(400).json({ error: 'Provide a tickers array' });
+    return;
+  }
+
+  try {
+    const results = [];
+    for (const ticker of tickers) {
+      try {
+        const result = await refreshPrice(ticker, null);
+        results.push(result);
+      } catch (err) {
+        console.warn(`[server] Price refresh failed for ${ticker}:`, err.message);
+        results.push({ ticker: ticker.toUpperCase(), price: null, changePercent: null, error: err.message });
+      }
+    }
+    res.json({ results });
+  } catch (err) {
+    console.error('[server] Refresh prices error:', err.message);
     if (!res.headersSent) {
       res.status(500).json({ error: err.message });
     }

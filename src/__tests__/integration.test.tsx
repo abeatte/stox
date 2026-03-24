@@ -228,7 +228,7 @@ describe('Stox Integration Tests', () => {
 
       await waitFor(() => {
         expect(screen.getByRole('alert')).toHaveTextContent(
-          'Ticker already in list.',
+          'Already in list: AAPL',
         );
       });
     });
@@ -291,13 +291,12 @@ describe('Stox Integration Tests', () => {
       });
 
       const headers = screen.getAllByRole('columnheader');
-      // 19 data columns + 1 empty header for the remove-button column
-      expect(headers).toHaveLength(COLUMNS.length + 1);
+      // 17 data columns + star column + 1 empty header for the remove-button column
+      expect(headers).toHaveLength(COLUMNS.length + 2);
 
-      // Spot-check a few headers
+      // Spot-check a few headers (data columns come first now)
       expect(headers[0]).toHaveTextContent('Ticker');
       expect(headers[1]).toHaveTextContent('Price');
-      expect(headers[18]).toHaveTextContent('Interest');
     });
 
     it('displays formatted financial data for a loaded ticker', async () => {
@@ -409,22 +408,6 @@ describe('Stox Integration Tests', () => {
         expect(screen.getByText('$170.25')).toBeInTheDocument();
       });
     });
-
-    it('persists interest annotations to localStorage', async () => {
-      localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
-      const user = userEvent.setup();
-      renderApp();
-
-      await waitFor(() => {
-        expect(screen.getByLabelText('Interest for AAPL')).toBeInTheDocument();
-      });
-
-      const interestInput = screen.getByLabelText('Interest for AAPL');
-      await user.type(interestInput, 'BUY');
-
-      const stored = JSON.parse(localStorage.getItem('stox:interest')!);
-      expect(stored.AAPL).toBe('BUY');
-    });
   });
 
   // -----------------------------------------------------------------------
@@ -532,35 +515,70 @@ describe('Stox Integration Tests', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Requirement 12: Interest annotations
+  // Star / favorite functionality
   // -----------------------------------------------------------------------
-  describe('Interest annotations', () => {
-    it('allows editing interest for a ticker', async () => {
+  describe('Star / favorite', () => {
+    it('renders star buttons for each ticker row', async () => {
+      localStorage.setItem('stox:tickers', JSON.stringify(['AAPL', 'MSFT']));
+      renderApp();
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('Star AAPL')).toBeInTheDocument();
+        expect(screen.getByLabelText('Star MSFT')).toBeInTheDocument();
+      });
+    });
+
+    it('toggles star state and persists to localStorage', async () => {
       localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
       const user = userEvent.setup();
       renderApp();
 
+      // Wait for data to load so the row renders
       await waitFor(() => {
-        expect(screen.getByLabelText('Interest for AAPL')).toBeInTheDocument();
+        expect(screen.getByText('$185.50')).toBeInTheDocument();
       });
 
-      const interestInput = screen.getByLabelText('Interest for AAPL');
-      await user.type(interestInput, 'WATCH');
+      // Star AAPL
+      await user.click(screen.getByLabelText('Star AAPL'));
 
-      expect(interestInput).toHaveValue('WATCH');
+      await waitFor(() => {
+        expect(screen.getByLabelText('Unstar AAPL')).toBeInTheDocument();
+      });
+      expect(JSON.parse(localStorage.getItem('stox:starred')!)).toContain('AAPL');
+
+      // Unstar AAPL
+      await user.click(screen.getByLabelText('Unstar AAPL'));
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('Star AAPL')).toBeInTheDocument();
+      });
+      expect(JSON.parse(localStorage.getItem('stox:starred')!)).not.toContain('AAPL');
     });
 
-    it('loads persisted interest annotations on mount', async () => {
-      localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
-      localStorage.setItem(
-        'stox:interest',
-        JSON.stringify({ AAPL: 'HOLD' }),
-      );
+    it('sorts starred tickers first when star header is clicked', async () => {
+      localStorage.setItem('stox:tickers', JSON.stringify(['AAPL', 'MSFT', 'GOOG']));
+      // Pre-star GOOG only
+      localStorage.setItem('stox:starred', JSON.stringify(['GOOG']));
+      const user = userEvent.setup();
       renderApp();
 
       await waitFor(() => {
-        expect(screen.getByLabelText('Interest for AAPL')).toHaveValue('HOLD');
+        expect(screen.getByLabelText('Remove AAPL')).toBeInTheDocument();
+        expect(screen.getByLabelText('Remove MSFT')).toBeInTheDocument();
+        expect(screen.getByLabelText('Remove GOOG')).toBeInTheDocument();
       });
+
+      // Click star header to sort ascending (starred first)
+      const starHeader = screen.getByLabelText('Star');
+      await user.click(starHeader);
+
+      await waitFor(() => {
+        expect(starHeader).toHaveAttribute('aria-sort', 'ascending');
+      });
+
+      // GOOG (starred) should be first row
+      const rows = screen.getAllByRole('row').slice(1); // skip header row
+      expect(rows[0]).toHaveTextContent('GOOG');
     });
   });
 
@@ -604,15 +622,24 @@ describe('Stox Integration Tests', () => {
   // Requirement 4: Computed columns
   // -----------------------------------------------------------------------
   describe('Computed columns display', () => {
-    it('displays computed EPS multiples correctly', async () => {
+    it('displays computed EPS multiples correctly in popover on hover', async () => {
       localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
+      const user = userEvent.setup();
       renderApp();
 
       await waitFor(() => {
-        // 20x EPS = 20 * 6.42 = $128.40
-        expect(screen.getByText('$128.40')).toBeInTheDocument();
+        expect(screen.getByText('$6.42')).toBeInTheDocument();
+      });
+
+      // Hover over the EPS cell to trigger the popover
+      const epsCell = screen.getByText('$6.42').closest('td')!;
+      await user.hover(epsCell);
+
+      await waitFor(() => {
         // 15x EPS = 15 * 6.42 = $96.30
-        expect(screen.getByText('$96.30')).toBeInTheDocument();
+        expect(screen.getByText(/15x EPS.*\$96\.30/)).toBeInTheDocument();
+        // 20x EPS = 20 * 6.42 = $128.40
+        expect(screen.getByText(/20x EPS.*\$128\.40/)).toBeInTheDocument();
       });
     });
   });
@@ -641,12 +668,7 @@ describe('Stox Integration Tests', () => {
         expect(screen.getByText('$420.72')).toBeInTheDocument();
       });
 
-      // 3. Annotate AAPL with "BUY"
-      const interestInput = screen.getByLabelText('Interest for AAPL');
-      await user.type(interestInput, 'BUY');
-      expect(interestInput).toHaveValue('BUY');
-
-      // 4. Search for MSFT — AAPL should disappear
+      // 3. Search for MSFT — AAPL should disappear
       const searchInput = screen.getByLabelText('Search tickers');
       await user.type(searchInput, 'MSFT');
 
@@ -675,8 +697,6 @@ describe('Stox Integration Tests', () => {
       expect(JSON.parse(localStorage.getItem('stox:tickers')!)).toEqual([
         'AAPL',
       ]);
-      const interest = JSON.parse(localStorage.getItem('stox:interest')!);
-      expect(interest.AAPL).toBe('BUY');
     });
   });
 });

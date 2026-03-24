@@ -26,7 +26,6 @@ const mockData: StockRowData = {
   eps20x: 128.4,
   eps15x: 96.3,
   priceEarnings: 28.89,
-  interest: 'BUY',
 };
 
 const defaultProps = {
@@ -34,11 +33,11 @@ const defaultProps = {
   data: mockData,
   isLoading: false,
   isError: false,
-  interest: 'BUY',
-  onInterestChange: vi.fn(),
   onRemove: vi.fn(),
   allTickers: ['AAPL'],
   onAddTicker: vi.fn(),
+  isStarred: false,
+  onToggleStar: vi.fn(),
 };
 
 function renderRow(props = {}) {
@@ -62,11 +61,11 @@ describe('StockRow', () => {
     expect(screen.getByRole('button', { name: /remove aapl/i })).toBeInTheDocument();
   });
 
-  it('renders the correct number of cells (19 columns + remove button)', () => {
+  it('renders the correct number of cells (star + 19 columns + remove button)', () => {
     renderRow();
     const row = screen.getAllByRole('row')[0];
     const cells = row.querySelectorAll('td');
-    expect(cells).toHaveLength(COLUMNS.length + 1);
+    expect(cells).toHaveLength(COLUMNS.length + 2);
   });
 
   it('shows loading state when isLoading is true and no data', () => {
@@ -98,20 +97,6 @@ describe('StockRow', () => {
     expect(onRemove).toHaveBeenCalledWith('AAPL');
   });
 
-  it('renders interest input with correct value', () => {
-    renderRow();
-    const input = screen.getByLabelText(/interest for aapl/i);
-    expect(input).toHaveValue('BUY');
-  });
-
-  it('calls onInterestChange when interest input changes', () => {
-    const onInterestChange = vi.fn();
-    renderRow({ onInterestChange });
-    const input = screen.getByLabelText(/interest for aapl/i);
-    fireEvent.change(input, { target: { value: 'SELL' } });
-    expect(onInterestChange).toHaveBeenCalledWith('AAPL', 'SELL');
-  });
-
   it('shows N/A for null values', () => {
     const nullData: StockRowData = {
       ...mockData,
@@ -122,5 +107,34 @@ describe('StockRow', () => {
     renderRow({ data: nullData });
     const cells = screen.getAllByText('N/A');
     expect(cells.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('renders unstarred state by default', () => {
+    renderRow();
+    expect(screen.getByRole('button', { name: /star aapl/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /star aapl/i })).toHaveTextContent('☆');
+  });
+
+  it('renders starred state when isStarred is true', () => {
+    renderRow({ isStarred: true });
+    expect(screen.getByRole('button', { name: /unstar aapl/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /unstar aapl/i })).toHaveTextContent('★');
+  });
+
+  it('calls onToggleStar with the ticker when star button is clicked', () => {
+    const onToggleStar = vi.fn();
+    renderRow({ onToggleStar });
+    fireEvent.click(screen.getByRole('button', { name: /star aapl/i }));
+    expect(onToggleStar).toHaveBeenCalledWith('AAPL');
+  });
+
+  it('places star column second from right (before remove button)', () => {
+    renderRow();
+    const row = screen.getAllByRole('row')[0];
+    const cells = row.querySelectorAll('td');
+    const lastCell = cells[cells.length - 1];
+    const secondToLastCell = cells[cells.length - 2];
+    expect(lastCell.querySelector('.gs-remove-btn')).toBeTruthy();
+    expect(secondToLastCell.querySelector('.gs-star-btn')).toBeTruthy();
   });
 });

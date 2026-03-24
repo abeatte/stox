@@ -46,6 +46,8 @@ export interface StockRowProps {
   relatedTickers?: string[];
   allTickers: string[];
   onAddTicker: (ticker: string) => void;
+  isStarred: boolean;
+  onToggleStar: (ticker: string) => void;
 }
 
 const NUMERIC_TYPES = new Set(['currency', 'percent', 'ratio', 'large-number']);
@@ -64,6 +66,8 @@ export function StockRow({
   relatedTickers,
   allTickers,
   onAddTicker,
+  isStarred,
+  onToggleStar,
 }: StockRowProps) {
   const [epsPopover, setEpsPopover] = useState<{ x: number; y: number } | null>(null);
   const [tickerPopover, setTickerPopover] = useState<{ x: number; y: number } | null>(null);
@@ -100,6 +104,16 @@ export function StockRow({
         </td>
         <td>
           <button
+            onClick={() => onToggleStar(ticker)}
+            aria-label={isStarred ? `Unstar ${ticker}` : `Star ${ticker}`}
+            type="button"
+            className="gs-star-btn"
+          >
+            {isStarred ? '★' : '☆'}
+          </button>
+        </td>
+        <td>
+          <button
             onClick={() => onRemove(ticker)}
             aria-label={`Remove ${ticker}`}
             type="button"
@@ -118,6 +132,16 @@ export function StockRow({
         <td>{ticker}</td>
         <td colSpan={totalColumns - 2} className="gs-cell-error">
           Error loading data
+        </td>
+        <td>
+          <button
+            onClick={() => onToggleStar(ticker)}
+            aria-label={isStarred ? `Unstar ${ticker}` : `Star ${ticker}`}
+            type="button"
+            className="gs-star-btn"
+          >
+            {isStarred ? '★' : '☆'}
+          </button>
         </td>
         <td>
           <button
@@ -225,6 +249,16 @@ export function StockRow({
           </td>
         );
       })}
+      <td>
+        <button
+          onClick={() => onToggleStar(ticker)}
+          aria-label={isStarred ? `Unstar ${ticker}` : `Star ${ticker}`}
+          type="button"
+          className="gs-star-btn"
+        >
+          {isStarred ? '★' : '☆'}
+        </button>
+      </td>
       <td>
         <button
           onClick={() => onRemove(ticker)}

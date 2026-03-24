@@ -2,8 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   getTickerList,
   setTickerList,
-  getInterestMap,
-  setInterestMap,
 } from './localStorageService';
 
 describe('localStorageService', () => {
@@ -36,34 +34,6 @@ describe('localStorageService', () => {
       setTickerList(['AAPL']);
       setTickerList(['MSFT', 'GOOG']);
       expect(getTickerList()).toEqual(['MSFT', 'GOOG']);
-    });
-  });
-
-  describe('getInterestMap / setInterestMap', () => {
-    it('returns empty object when nothing is stored', () => {
-      expect(getInterestMap()).toEqual({});
-    });
-
-    it('round-trips an interest map', () => {
-      const map = { AAPL: 'BUY', MSFT: 'WATCH' };
-      setInterestMap(map);
-      expect(getInterestMap()).toEqual(map);
-    });
-
-    it('returns empty object for corrupted JSON', () => {
-      localStorage.setItem('stox:interest', 'not json');
-      expect(getInterestMap()).toEqual({});
-    });
-
-    it('returns empty object when stored value is an array', () => {
-      localStorage.setItem('stox:interest', '["a","b"]');
-      expect(getInterestMap()).toEqual({});
-    });
-
-    it('overwrites previous interest map', () => {
-      setInterestMap({ AAPL: 'BUY' });
-      setInterestMap({ GOOG: 'SELL' });
-      expect(getInterestMap()).toEqual({ GOOG: 'SELL' });
     });
   });
 });

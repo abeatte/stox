@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { ColumnKey, StockRowData } from '../types';
+import { ColumnKey, SortKey, StockRowData } from '../types';
 import { COLUMNS } from '../columns';
 
 /**
@@ -55,11 +55,11 @@ export function sortRows(
  */
 export function useTableState() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortColumn, setSortColumn] = useState<ColumnKey | null>(null);
+  const [sortColumn, setSortColumn] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const onSort = useCallback(
-    (col: ColumnKey) => {
+    (col: SortKey) => {
       if (sortColumn === col) {
         if (sortDirection === 'asc') {
           setSortDirection('desc');

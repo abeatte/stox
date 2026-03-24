@@ -19,18 +19,20 @@ const baseProps = {
 };
 
 describe('TableHeader', () => {
-  it('renders all 19 column headers', () => {
+  it('renders all column headers including star', () => {
     render(
       <table>
         <TableHeader sortColumn={null} sortDirection="asc" onSort={() => {}} {...baseProps} />
       </table>,
     );
     const headers = screen.getAllByRole('columnheader');
-    // 17 data columns + 1 empty header for the remove-button column
-    expect(headers).toHaveLength(COLUMNS.length + 1);
+    // 17 data columns + star column + 1 empty header for the remove-button column
+    expect(headers).toHaveLength(COLUMNS.length + 2);
     COLUMNS.forEach((col, i) => {
       expect(headers[i]).toHaveTextContent(col.label);
     });
+    // Star header is second from right
+    expect(headers[COLUMNS.length]).toHaveAttribute('aria-label', 'Star');
   });
 
   it('calls onSort with the column key when a header is clicked', () => {
@@ -76,5 +78,39 @@ describe('TableHeader', () => {
     expect(tickerHeader.textContent).not.toContain('▲');
     expect(tickerHeader.textContent).not.toContain('▼');
     expect(tickerHeader).not.toHaveAttribute('aria-sort');
+  });
+
+  it('calls onSort with "star" when star header is clicked', () => {
+    const onSort = vi.fn();
+    render(
+      <table>
+        <TableHeader sortColumn={null} sortDirection="asc" onSort={onSort} {...baseProps} />
+      </table>,
+    );
+    const starHeader = screen.getByLabelText('Star');
+    fireEvent.click(starHeader);
+    expect(onSort).toHaveBeenCalledWith('star');
+  });
+
+  it('shows sort indicator on star header when star is the active sort column', () => {
+    render(
+      <table>
+        <TableHeader sortColumn="star" sortDirection="asc" onSort={() => {}} {...baseProps} />
+      </table>,
+    );
+    const starHeader = screen.getByLabelText('Star');
+    expect(starHeader).toHaveAttribute('aria-sort', 'ascending');
+    expect(starHeader.textContent).toContain('▲');
+  });
+
+  it('shows descending indicator on star header', () => {
+    render(
+      <table>
+        <TableHeader sortColumn="star" sortDirection="desc" onSort={() => {}} {...baseProps} />
+      </table>,
+    );
+    const starHeader = screen.getByLabelText('Star');
+    expect(starHeader).toHaveAttribute('aria-sort', 'descending');
+    expect(starHeader.textContent).toContain('▼');
   });
 });

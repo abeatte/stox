@@ -230,27 +230,6 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Interest input (inline edit like a cell) ── */
-.gs-interest-input {
-  width: 100%;
-  min-width: 70px;
-  height: 24px;
-  padding: 0 4px;
-  border: none;
-  background: transparent;
-  font-size: 13px;
-  font-family: inherit;
-  color: #202124;
-  outline: none;
-}
-
-.gs-interest-input:focus {
-  background: #fff;
-  border: 2px solid #1a73e8;
-  border-radius: 1px;
-  margin: -2px;
-}
-
 /* ── Remove button (subtle) ── */
 .gs-remove-btn {
   background: none;
@@ -267,6 +246,26 @@ body {
 .gs-remove-btn:hover {
   background: #fce8e6;
   color: #d93025;
+}
+
+/* ── Star/favorite button ── */
+.gs-star-btn {
+  background: none;
+  border: none;
+  color: #dadce0;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.gs-star-btn:hover {
+  color: #f9ab00;
+}
+
+.gs-star-btn[aria-label^="Unstar"] {
+  color: #f9ab00;
 }
 
 /* ── Cell highlight colors ── */

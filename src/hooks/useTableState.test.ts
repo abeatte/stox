@@ -25,7 +25,6 @@ function makeRow(overrides: Partial<StockRowData>): StockRowData {
     eps20x: null,
     eps15x: null,
     priceEarnings: null,
-    interest: '',
     ...overrides,
   };
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTickerList } from '../hooks/useTickerList';
+import { useStarredTickers } from '../hooks/useStarredTickers';
 import { useStockData } from '../hooks/useStockData';
 import { useTableState } from '../hooks/useTableState';
 import { useColumnResize } from '../hooks/useColumnResize';
@@ -23,12 +24,16 @@ function StockRowWithData({
   onData,
   allTickers,
   onAddTicker,
+  isStarred,
+  onToggleStar,
 }: {
   ticker: string;
   onRemove: (ticker: string) => void;
   onData: (ticker: string, row: StockRowData | null) => void;
   allTickers: string[];
   onAddTicker: (ticker: string) => void;
+  isStarred: boolean;
+  onToggleStar: (ticker: string) => void;
 }) {
   const { data, isLoading, isError } = useStockData(ticker);
 
@@ -51,6 +56,8 @@ function StockRowWithData({
       relatedTickers={data?.relatedTickers}
       allTickers={allTickers}
       onAddTicker={onAddTicker}
+      isStarred={isStarred}
+      onToggleStar={onToggleStar}
     />
   );
 }
@@ -62,6 +69,7 @@ function StockRowWithData({
  */
 export function TickerTable() {
   const [tickers, addTicker, removeTicker] = useTickerList();
+  const [starredTickers, toggleStar] = useStarredTickers();
   const {
     searchQuery,
     onSearchChange,
@@ -111,6 +119,18 @@ export function TickerTable() {
   const sortedTickers = useMemo(() => {
     if (!sortColumn) return filteredTickers;
 
+    // Star sort operates on ticker names directly using the starred set
+    if (sortColumn === 'star') {
+      const sorted = [...filteredTickers];
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      sorted.sort((a, b) => {
+        const aStarred = starredTickers.has(a) ? 1 : 0;
+        const bStarred = starredTickers.has(b) ? 1 : 0;
+        return (bStarred - aStarred) * dir;
+      });
+      return sorted;
+    }
+
     const withData: StockRowData[] = [];
     const withoutData: string[] = [];
 
@@ -125,7 +145,7 @@ export function TickerTable() {
 
     const sorted = sortRows(withData, sortColumn, sortDirection);
     return [...sorted.map((r) => r.ticker), ...withoutData];
-  }, [filteredTickers, sortColumn, sortDirection, sortRows, rowDataMap]);
+  }, [filteredTickers, sortColumn, sortDirection, sortRows, rowDataMap, starredTickers]);
 
   // Export handler
   const handleExport = useCallback(() => {
@@ -205,6 +225,8 @@ export function TickerTable() {
                 onData={handleRowData}
                 allTickers={tickers}
                 onAddTicker={addTicker}
+                isStarred={starredTickers.has(ticker)}
+                onToggleStar={toggleStar}
               />
             ))}
           </tbody>

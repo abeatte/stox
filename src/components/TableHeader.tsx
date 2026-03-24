@@ -1,11 +1,11 @@
 import type { RefObject } from 'react';
 import { COLUMNS } from '../columns';
-import { ColumnKey } from '../types';
+import { ColumnKey, SortKey } from '../types';
 
 export interface TableHeaderProps {
-  sortColumn: ColumnKey | null;
+  sortColumn: SortKey | null;
   sortDirection: 'asc' | 'desc';
-  onSort: (col: ColumnKey) => void;
+  onSort: (col: SortKey) => void;
   columnWidths: Record<ColumnKey, number>;
   onResizeStart: (key: ColumnKey, e: React.MouseEvent) => void;
   onAutoFit: (key: ColumnKey) => void;
@@ -37,6 +37,8 @@ export function TableHeader({
         {COLUMNS.map((col) => (
           <col key={col.key} style={{ width: columnWidths[col.key] }} />
         ))}
+        {/* col for the star column */}
+        <col style={{ width: 36 }} />
         {/* col for the remove-button column */}
         <col style={{ width: 36 }} />
       </colgroup>
@@ -78,6 +80,28 @@ export function TableHeader({
               </th>
             );
           })}
+          {/* Star column header */}
+          <th
+            style={{ width: 36, cursor: 'pointer', paddingLeft: 13 }}
+            aria-label="Star"
+            onClick={() => onSort('star')}
+            aria-sort={
+              sortColumn === 'star'
+                ? sortDirection === 'asc'
+                  ? 'ascending'
+                  : 'descending'
+                : undefined
+            }
+          >
+            <span className="gs-th-content">
+              {sortColumn === 'star' && (
+                <span aria-hidden="true" className="gs-sort-arrow">
+                  {sortDirection === 'asc' ? '▲' : '▼'}
+                </span>
+              )}
+              ★
+            </span>
+          </th>
           {/* Empty header for remove column */}
           <th />
         </tr>

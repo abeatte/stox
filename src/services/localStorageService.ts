@@ -1,9 +1,9 @@
 const TICKER_KEY = 'stox:tickers';
-const INTEREST_KEY = 'stox:interest';
+const STARRED_KEY = 'stox:starred';
 
 // In-memory fallback when localStorage is unavailable
 let memoryTickerList: string[] = [];
-let memoryInterestMap: Record<string, string> = {};
+let memoryStarredSet: string[] = [];
 
 function isLocalStorageAvailable(): boolean {
   try {
@@ -45,29 +45,29 @@ export function setTickerList(tickers: string[]): void {
   }
 }
 
-export function getInterestMap(): Record<string, string> {
+export function getStarredTickers(): string[] {
   if (!storageAvailable) {
-    return { ...memoryInterestMap };
+    return [...memoryStarredSet];
   }
   try {
-    const raw = localStorage.getItem(INTEREST_KEY);
-    if (raw === null) return {};
+    const raw = localStorage.getItem(STARRED_KEY);
+    if (raw === null) return [];
     const parsed = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
+    if (!Array.isArray(parsed)) return [];
     return parsed;
   } catch {
-    return {};
+    return [];
   }
 }
 
-export function setInterestMap(map: Record<string, string>): void {
+export function setStarredTickers(starred: string[]): void {
   if (!storageAvailable) {
-    memoryInterestMap = { ...map };
+    memoryStarredSet = [...starred];
     return;
   }
   try {
-    localStorage.setItem(INTEREST_KEY, JSON.stringify(map));
+    localStorage.setItem(STARRED_KEY, JSON.stringify(starred));
   } catch {
-    memoryInterestMap = { ...map };
+    memoryStarredSet = [...starred];
   }
 }

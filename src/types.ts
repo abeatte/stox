@@ -53,6 +53,11 @@ export interface StockRowData {
 }
 
 /**
+ * Sort key extends ColumnKey with the virtual 'star' column.
+ */
+export type SortKey = ColumnKey | 'star';
+
+/**
  * Union type of all valid column keys.
  */
 export type ColumnKey =

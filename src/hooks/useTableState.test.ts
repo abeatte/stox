@@ -6,7 +6,10 @@ function makeRow(overrides: Partial<StockRowData>): StockRowData {
   return {
     ticker: '',
     price: null,
+    changePercent: null,
     date: null,
+    sector: null,
+    industry: null,
     divYield: null,
     eps: null,
     totalAssets: null,

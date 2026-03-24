@@ -7,7 +7,10 @@ import { COLUMNS } from '../columns';
 const mockData: StockRowData = {
   ticker: 'AAPL',
   price: 185.5,
+  changePercent: null,
   date: '2024-01-15',
+  sector: 'Technology',
+  industry: 'Consumer Electronics',
   divYield: 0.52,
   eps: 6.42,
   totalAssets: 352583000000,
@@ -53,8 +56,8 @@ describe('StockRow', () => {
     renderRow();
     // Ticker column
     expect(screen.getByText('AAPL')).toBeInTheDocument();
-    // Date column
-    expect(screen.getByText('2024-01-15')).toBeInTheDocument();
+    // Sector column
+    expect(screen.getByText('Technology')).toBeInTheDocument();
     // Remove button
     expect(screen.getByRole('button', { name: /remove aapl/i })).toBeInTheDocument();
   });

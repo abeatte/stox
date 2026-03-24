@@ -7,6 +7,8 @@ export interface RawStockData {
   price: number | null;
   changePercent: number | null;
   date: string | null;
+  sector: string | null;
+  industry: string | null;
   divYield: number | null;
   eps: number | null;
   totalAssets: number | null;
@@ -31,6 +33,8 @@ export interface StockRowData {
   price: number | null;
   changePercent: number | null;
   date: string | null;
+  sector: string | null;
+  industry: string | null;
   divYield: number | null;
   eps: number | null;
   totalAssets: number | null;
@@ -54,6 +58,8 @@ export interface StockRowData {
 export type ColumnKey =
   | 'ticker'
   | 'price'
+  | 'sector'
+  | 'industry'
   | 'divYield'
   | 'eps'
   | 'totalAssets'

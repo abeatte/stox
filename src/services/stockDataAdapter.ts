@@ -33,6 +33,8 @@ export class YahooFinanceAdapter implements StockDataAdapter {
       price: toNum(data.price),
       changePercent: toNum(data.changePercent),
       date: data.date ?? null,
+      sector: data.sector ?? null,
+      industry: data.industry ?? null,
       divYield: toNum(data.divYield),
       eps: toNum(data.eps),
       totalAssets: toNum(data.totalAssets),

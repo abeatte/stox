@@ -13,6 +13,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useTickerList } from '../hooks/useTickerList';
 import { TickerTable } from '../components/TickerTable';
 import { EmptyState } from '../components/EmptyState';
+import { COLUMNS } from '../columns';
 import type { RawStockData } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -33,6 +34,9 @@ function makeRawData(overrides: Partial<RawStockData> = {}): RawStockData {
     ticker: 'AAPL',
     price: 185.5,
     date: '2025-03-18',
+    changePercent: null,
+    sector: null,
+    industry: null,
     divYield: 0.52,
     eps: 6.42,
     totalAssets: 352583,
@@ -176,11 +180,11 @@ describe('Stox Integration Tests', () => {
       renderApp();
 
       await waitFor(() => {
-        expect(screen.getByLabelText('Ticker symbol')).toBeInTheDocument();
+        expect(screen.getByLabelText('Ticker symbols, comma separated')).toBeInTheDocument();
       });
 
       // Type ticker and submit
-      const input = screen.getByLabelText('Ticker symbol');
+      const input = screen.getByLabelText('Ticker symbols, comma separated');
       await user.type(input, 'AAPL');
       await user.click(screen.getByRole('button', { name: 'Add' }));
 
@@ -215,10 +219,10 @@ describe('Stox Integration Tests', () => {
       renderApp();
 
       await waitFor(() => {
-        expect(screen.getByLabelText('Ticker symbol')).toBeInTheDocument();
+        expect(screen.getByLabelText('Ticker symbols, comma separated')).toBeInTheDocument();
       });
 
-      const input = screen.getByLabelText('Ticker symbol');
+      const input = screen.getByLabelText('Ticker symbols, comma separated');
       await user.type(input, 'AAPL');
       await user.click(screen.getByRole('button', { name: 'Add' }));
 
@@ -288,7 +292,7 @@ describe('Stox Integration Tests', () => {
 
       const headers = screen.getAllByRole('columnheader');
       // 19 data columns + 1 empty header for the remove-button column
-      expect(headers).toHaveLength(20);
+      expect(headers).toHaveLength(COLUMNS.length + 1);
 
       // Spot-check a few headers
       expect(headers[0]).toHaveTextContent('Ticker');
@@ -308,8 +312,6 @@ describe('Stox Integration Tests', () => {
 
       // EPS formatted as currency
       expect(screen.getByText('$6.42')).toBeInTheDocument();
-      // Date as text
-      expect(screen.getByText('2025-03-18')).toBeInTheDocument();
     });
 
     it('shows N/A for null computed fields', async () => {
@@ -386,10 +388,10 @@ describe('Stox Integration Tests', () => {
       renderApp();
 
       await waitFor(() => {
-        expect(screen.getByLabelText('Ticker symbol')).toBeInTheDocument();
+        expect(screen.getByLabelText('Ticker symbols, comma separated')).toBeInTheDocument();
       });
 
-      const input = screen.getByLabelText('Ticker symbol');
+      const input = screen.getByLabelText('Ticker symbols, comma separated');
       await user.type(input, 'MSFT');
       await user.click(screen.getByRole('button', { name: 'Add' }));
 
@@ -631,7 +633,7 @@ describe('Stox Integration Tests', () => {
       });
 
       // 2. Add MSFT
-      const tickerInput = screen.getByLabelText('Ticker symbol');
+      const tickerInput = screen.getByLabelText('Ticker symbols, comma separated');
       await user.type(tickerInput, 'MSFT');
       await user.click(screen.getByRole('button', { name: 'Add' }));
 
@@ -653,7 +655,7 @@ describe('Stox Integration Tests', () => {
         expect(screen.getByLabelText('Remove MSFT')).toBeInTheDocument();
       });
 
-      // 5. Clear search — both tickers visible again
+      // 4. Clear search — both tickers visible again
       await user.clear(searchInput);
 
       await waitFor(() => {
@@ -661,7 +663,7 @@ describe('Stox Integration Tests', () => {
         expect(screen.getByLabelText('Remove MSFT')).toBeInTheDocument();
       });
 
-      // 6. Remove MSFT
+      // 5. Remove MSFT
       await user.click(screen.getByLabelText('Remove MSFT'));
 
       await waitFor(() => {
@@ -669,7 +671,7 @@ describe('Stox Integration Tests', () => {
       });
       expect(screen.getByLabelText('Remove AAPL')).toBeInTheDocument();
 
-      // 7. Verify localStorage has correct state
+      // 6. Verify localStorage has correct state
       expect(JSON.parse(localStorage.getItem('stox:tickers')!)).toEqual([
         'AAPL',
       ]);

@@ -26,8 +26,8 @@ describe('TableHeader', () => {
       </table>,
     );
     const headers = screen.getAllByRole('columnheader');
-    // 19 data columns + 1 empty header for the remove-button column
-    expect(headers).toHaveLength(20);
+    // 17 data columns + 1 empty header for the remove-button column
+    expect(headers).toHaveLength(COLUMNS.length + 1);
     COLUMNS.forEach((col, i) => {
       expect(headers[i]).toHaveTextContent(col.label);
     });

@@ -201,14 +201,108 @@ async function fetchQuoteSummaryPuppeteer(ticker, signal) {
 async function fetchQuoteSummary(ticker, signal) {
   const result = await fetchQuoteSummaryHttp(ticker, signal);
   if (result) {
-    console.log(`[${ticker}] Quote summary parsed — modules: ${Object.keys(result).length}`);
+    console.log(`[${ticker}] Quote summary parsed — modules: ${Object.keys(result).join(', ')}`);
     return result;
   }
 
   console.log(`[${ticker}] HTTP fetch failed (likely bot-blocked), trying Puppeteer...`);
   const fallback = await fetchQuoteSummaryPuppeteer(ticker, signal);
-  console.log(`[${ticker}] Quote summary parsed via Puppeteer — modules: ${Object.keys(fallback).length}`);
+  console.log(`[${ticker}] Quote summary parsed via Puppeteer — modules: ${Object.keys(fallback).join(', ')}`);
   return fallback;
+}
+
+// ---------------------------------------------------------------------------
+// Profile page — fetch assetProfile (sector/industry) from /quote/{ticker}/profile/
+// ---------------------------------------------------------------------------
+
+async function fetchProfileHttp(ticker, signal) {
+  await throttle();
+  const url = `https://finance.yahoo.com/quote/${ticker}/profile/`;
+  console.log(`[${ticker}] Fetching profile page (HTTP)...`);
+  const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal });
+
+  if (!resp.ok) return null;
+
+  const html = await resp.text();
+  try {
+    const result = parseQuoteSummaryHtml(ticker, html);
+    const ap = result?.assetProfile;
+    if (ap) {
+      console.log(`[${ticker}] Profile parsed — sector: ${ap.sector ?? 'N/A'}, industry: ${ap.industry ?? 'N/A'}`);
+      return ap;
+    }
+  } catch { /* no embedded JSON on profile page */ }
+  return null;
+}
+
+async function fetchProfilePuppeteer(ticker, signal) {
+  let browser;
+  try {
+    browser = await getBrowser();
+  } catch {
+    return null;
+  }
+
+  const page = await browser.newPage();
+  await page.setUserAgent(UA);
+  await page.setViewport({ width: 1280, height: 800 });
+
+  const onAbort = () => { page.close().catch(() => {}); };
+  if (signal?.aborted) { await page.close(); return null; }
+  signal?.addEventListener('abort', onAbort, { once: true });
+
+  try {
+    await throttle();
+    const url = `https://finance.yahoo.com/quote/${ticker}/profile/`;
+    console.log(`[${ticker}] Fetching profile page (Puppeteer fallback)...`);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+    const html = await page.content();
+    try {
+      const result = parseQuoteSummaryHtml(ticker, html);
+      const ap = result?.assetProfile;
+      if (ap) {
+        console.log(`[${ticker}] Profile parsed via Puppeteer — sector: ${ap.sector ?? 'N/A'}, industry: ${ap.industry ?? 'N/A'}`);
+        return ap;
+      }
+    } catch { /* not in HTML */ }
+
+    // Fallback: scrape the visible text on the profile page
+    const profileData = await page.evaluate(() => {
+      const getText = (label) => {
+        const spans = [...document.querySelectorAll('span, dt, th')];
+        for (const el of spans) {
+          if (el.textContent.trim() === label) {
+            const next = el.nextElementSibling;
+            if (next) return next.textContent.trim();
+          }
+        }
+        return null;
+      };
+      return { sector: getText('Sector') || getText('Sector(s)'), industry: getText('Industry') };
+    });
+
+    if (profileData.sector || profileData.industry) {
+      console.log(`[${ticker}] Profile scraped from DOM — sector: ${profileData.sector ?? 'N/A'}, industry: ${profileData.industry ?? 'N/A'}`);
+      return profileData;
+    }
+
+    return null;
+  } catch (err) {
+    console.warn(`[${ticker}] Profile fetch failed: ${err.message}`);
+    return null;
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+    await page.close().catch(() => {});
+  }
+}
+
+async function fetchProfile(ticker, signal) {
+  const ap = await fetchProfileHttp(ticker, signal);
+  if (ap) return ap;
+
+  console.log(`[${ticker}] Profile HTTP failed, trying Puppeteer...`);
+  return fetchProfilePuppeteer(ticker, signal);
 }
 
 // ---------------------------------------------------------------------------
@@ -383,6 +477,7 @@ export async function fetchTickerData(ticker, signal) {
     const fd = summary.financialData || {};
     const sd = summary.summaryDetail || {};
     const ks = summary.defaultKeyStatistics || {};
+    const ap = summary.assetProfile || {};
 
     const price = rawVal(fd.currentPrice) ?? rawVal(summary.price?.regularMarketPrice);
     const changePercentRaw = rawVal(summary.price?.regularMarketChangePercent);
@@ -414,11 +509,27 @@ export async function fetchTickerData(ticker, signal) {
     // Related tickers from balance sheet page, excluding the ticker itself
     const relatedTickers = bsData?.relatedTickers?.filter((t) => t !== symbol) ?? [];
 
+    // assetProfile is often missing from the main quote page's embedded JSON.
+    // If sector/industry are absent, fetch the dedicated profile page.
+    let sector = ap.sector || null;
+    let industry = ap.industry || null;
+
+    if (!sector && !industry) {
+      console.log(`[${symbol}] assetProfile missing sector/industry, fetching profile page...`);
+      const profile = await fetchProfile(symbol, signal);
+      if (profile) {
+        sector = profile.sector || null;
+        industry = profile.industry || null;
+      }
+    }
+
     const result = {
       ticker: symbol,
       price,
       changePercent,
       date: new Date().toISOString().split('T')[0],
+      sector,
+      industry,
       divYield: divRate,
       eps,
       totalAssets: bsTotalAssets != null ? bsTotalAssets * K

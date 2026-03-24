@@ -19,6 +19,8 @@ export interface RawStockData {
   bookValue?: number | null;
   /** Pre-computed price-to-book ratio (from Yahoo). Used as fallback when balance sheet data is unavailable. */
   priceToBook?: number | null;
+  /** Related ticker symbols scraped from Yahoo Finance's "Related Tickers" section. */
+  relatedTickers?: string[];
 }
 
 /**

@@ -19,8 +19,14 @@ const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
 function loadCache() {
   try {
     const raw = readFileSync(CACHE_FILE, 'utf-8');
-    const entries = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
     let loaded = 0;
+
+    // Support both formats: new object format and legacy array-of-tuples
+    const entries = Array.isArray(parsed)
+      ? parsed
+      : Object.entries(parsed).map(([key, value]) => [key, value]);
+
     for (const [key, value] of entries) {
       if (Date.now() - value.timestamp < CACHE_TTL) {
         cache.set(key, value);
@@ -35,8 +41,8 @@ function loadCache() {
 
 export function saveCache() {
   try {
-    const entries = [...cache.entries()];
-    writeFileSync(CACHE_FILE, JSON.stringify(entries));
+    const obj = Object.fromEntries(cache.entries());
+    writeFileSync(CACHE_FILE, JSON.stringify(obj, null, 2) + '\n');
   } catch (err) {
     console.warn('[scraper] Failed to save cache:', err.message);
   }
@@ -264,15 +270,35 @@ async function scrapeBalanceSheet(ticker, signal) {
         }
         return null;
       };
+
+      // Scrape tickers from the "Related Tickers" section only
+      const relatedTickers = [];
+      const sections = document.querySelectorAll('section');
+      for (const section of sections) {
+        const heading = section.querySelector('h2, h3');
+        if (heading && /related\s+tickers/i.test(heading.textContent)) {
+          const seen = new Set();
+          for (const a of section.querySelectorAll('a[href*="/quote/"]')) {
+            const match = a.href.match(/\/quote\/([A-Z0-9.\-]+)/);
+            if (match && !seen.has(match[1])) {
+              seen.add(match[1]);
+              relatedTickers.push(match[1]);
+            }
+          }
+          break;
+        }
+      }
+
       return {
         totalAssets: getValue('Total Assets'),
         goodwillNet: getValue('Goodwill'),
         intangiblesNet: getValue('Other Intangible Assets'),
         liabilitiesTotal: getValue('Total Liabilities Net Minority Interest'),
         sharesOutstanding: getValue('Share Issued') || getValue('Ordinary Shares Number'),
+        relatedTickers,
       };
     });
-    console.log(`[${ticker}] Balance sheet extracted — goodwill: ${data.goodwillNet ?? 'N/A'}, intangibles: ${data.intangiblesNet ?? 'N/A'}`);
+    console.log(`[${ticker}] Balance sheet extracted — goodwill: ${data.goodwillNet ?? 'N/A'}, intangibles: ${data.intangiblesNet ?? 'N/A'}, related: ${data.relatedTickers?.length ?? 0}`);
     return data;
   } catch (err) {
     console.warn(`[${ticker}] Balance sheet scrape failed: ${err.message}`);
@@ -385,6 +411,9 @@ export async function fetchTickerData(ticker, signal) {
     const totalEquity = bookValue != null && sharesOutstandingQuote != null
       ? bookValue * sharesOutstandingQuote : null;
 
+    // Related tickers from balance sheet page, excluding the ticker itself
+    const relatedTickers = bsData?.relatedTickers?.filter((t) => t !== symbol) ?? [];
+
     const result = {
       ticker: symbol,
       price,
@@ -401,6 +430,7 @@ export async function fetchTickerData(ticker, signal) {
       dividendPercent: divYieldPct,
       bookValue,
       priceToBook,
+      relatedTickers,
     };
 
     cache.set(symbol, { data: result, timestamp: Date.now() });

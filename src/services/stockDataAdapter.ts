@@ -41,6 +41,7 @@ export class YahooFinanceAdapter implements StockDataAdapter {
       liabilitiesTotal: toNum(data.liabilitiesTotal),
       sharesOutstanding: toNum(data.sharesOutstanding),
       dividendPercent: toNum(data.dividendPercent),
+      relatedTickers: Array.isArray(data.relatedTickers) ? data.relatedTickers : [],
     };
   }
 

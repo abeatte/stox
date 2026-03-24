@@ -21,10 +21,14 @@ function StockRowWithData({
   ticker,
   onRemove,
   onData,
+  allTickers,
+  onAddTicker,
 }: {
   ticker: string;
   onRemove: (ticker: string) => void;
   onData: (ticker: string, row: StockRowData | null) => void;
+  allTickers: string[];
+  onAddTicker: (ticker: string) => void;
 }) {
   const { data, isLoading, isError } = useStockData(ticker);
 
@@ -44,6 +48,9 @@ function StockRowWithData({
       isLoading={isLoading}
       isError={isError}
       onRemove={onRemove}
+      relatedTickers={data?.relatedTickers}
+      allTickers={allTickers}
+      onAddTicker={onAddTicker}
     />
   );
 }
@@ -196,6 +203,8 @@ export function TickerTable() {
                 ticker={ticker}
                 onRemove={removeTicker}
                 onData={handleRowData}
+                allTickers={tickers}
+                onAddTicker={addTicker}
               />
             ))}
           </tbody>

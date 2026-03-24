@@ -302,6 +302,60 @@ body {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
+/* ── Related tickers popover ── */
+.gs-related-popover {
+  position: fixed;
+  transform: translateX(-50%);
+  margin-top: -4px;
+  background: #202124;
+  color: #fff;
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 9999;
+  pointer-events: auto;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.gs-related-popover-title {
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: #9aa0a6;
+  font-size: 11px;
+}
+
+.gs-related-popover-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+}
+
+.gs-related-add-btn {
+  background: none;
+  border: 1px solid #5f6368;
+  color: #8ab4f8;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  padding: 0;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.gs-related-add-btn:hover {
+  background: #394457;
+  border-color: #8ab4f8;
+}
+
 /* ── Loading / Error states ── */
 .gs-cell-loading {
   color: #80868b;

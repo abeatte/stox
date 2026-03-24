@@ -34,6 +34,8 @@ const defaultProps = {
   interest: 'BUY',
   onInterestChange: vi.fn(),
   onRemove: vi.fn(),
+  allTickers: ['AAPL'],
+  onAddTicker: vi.fn(),
 };
 
 function renderRow(props = {}) {

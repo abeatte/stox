@@ -43,6 +43,9 @@ export interface StockRowProps {
   isLoading: boolean;
   isError: boolean;
   onRemove: (ticker: string) => void;
+  relatedTickers?: string[];
+  allTickers: string[];
+  onAddTicker: (ticker: string) => void;
 }
 
 const NUMERIC_TYPES = new Set(['currency', 'percent', 'ratio', 'large-number']);
@@ -58,16 +61,32 @@ export function StockRow({
   isLoading,
   isError,
   onRemove,
+  relatedTickers,
+  allTickers,
+  onAddTicker,
 }: StockRowProps) {
-  const [popover, setPopover] = useState<{ x: number; y: number } | null>(null);
+  const [epsPopover, setEpsPopover] = useState<{ x: number; y: number } | null>(null);
+  const [tickerPopover, setTickerPopover] = useState<{ x: number; y: number } | null>(null);
 
-  const handleMouseEnter = useCallback((e: React.MouseEvent<HTMLTableCellElement>) => {
+  const handleEpsMouseEnter = useCallback((e: React.MouseEvent<HTMLTableCellElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    setPopover({ x: rect.left + rect.width / 2, y: rect.top });
+    setEpsPopover({ x: rect.left + rect.width / 2, y: rect.top });
   }, []);
 
-  const handleMouseLeave = useCallback(() => {
-    setPopover(null);
+  const handleEpsMouseLeave = useCallback(() => {
+    setEpsPopover(null);
+  }, []);
+
+  const hasRelated = relatedTickers && relatedTickers.length > 0;
+
+  const handleTickerMouseEnter = useCallback((e: React.MouseEvent<HTMLTableCellElement>) => {
+    if (!hasRelated) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTickerPopover({ x: rect.left + rect.width / 2, y: rect.bottom });
+  }, [hasRelated]);
+
+  const handleTickerMouseLeave = useCallback(() => {
+    setTickerPopover(null);
   }, []);
 
   const totalColumns = COLUMNS.length + 1; // +1 for the remove button column
@@ -120,8 +139,13 @@ export function StockRow({
         const value = data ? data[col.key] : null;
 
         if (col.key === 'ticker') {
+          const allTickersUpper = allTickers.map((t) => t.toUpperCase());
           return (
-            <td key={col.key}>
+            <td
+              key={col.key}
+              onMouseEnter={handleTickerMouseEnter}
+              onMouseLeave={handleTickerMouseLeave}
+            >
               <a
                 href={`https://finance.yahoo.com/quote/${ticker}`}
                 target="_blank"
@@ -130,6 +154,37 @@ export function StockRow({
               >
                 {ticker}
               </a>
+              {tickerPopover && hasRelated && createPortal(
+                <div
+                  className="gs-related-popover"
+                  role="tooltip"
+                  style={{ left: tickerPopover.x, top: tickerPopover.y }}
+                >
+                  <div className="gs-related-popover-title">Related Tickers</div>
+                  {relatedTickers.map((rt) => {
+                    const inList = allTickersUpper.includes(rt.toUpperCase());
+                    return (
+                      <div key={rt} className="gs-related-popover-row">
+                        <span>{rt}</span>
+                        {!inList && (
+                          <button
+                            className="gs-related-add-btn"
+                            aria-label={`Add ${rt}`}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              onAddTicker(rt);
+                            }}
+                            type="button"
+                          >
+                            +
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>,
+                document.body,
+              )}
             </td>
           );
         }
@@ -145,15 +200,15 @@ export function StockRow({
             <td
               key={col.key}
               className={className}
-              onMouseEnter={handleMouseEnter}
-              onMouseLeave={handleMouseLeave}
+              onMouseEnter={handleEpsMouseEnter}
+              onMouseLeave={handleEpsMouseLeave}
             >
               {formatValue(value, col.type)}
-              {popover && createPortal(
+              {epsPopover && createPortal(
                 <div
                   className="gs-eps-popover"
                   role="tooltip"
-                  style={{ left: popover.x, top: popover.y }}
+                  style={{ left: epsPopover.x, top: epsPopover.y }}
                 >
                   <div>15x EPS: {eps15x != null ? formatCurrency(eps15x) : 'N/A'}</div>
                   <div>20x EPS: {eps20x != null ? formatCurrency(eps20x) : 'N/A'}</div>

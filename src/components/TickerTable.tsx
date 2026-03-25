@@ -11,6 +11,7 @@ import { stockDataAdapter } from '../services/stockDataAdapter';
 import { ToolBar } from './ToolBar';
 import { TableHeader } from './TableHeader';
 import { StockRow } from './StockRow';
+import { Heatmap } from './Heatmap';
 import type { StockRowData, RawStockData } from '../types';
 
 /**
@@ -91,6 +92,7 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
   const rowDataMap = rowDataMapRef.current;
 
   const [hasData, setHasData] = useState(false);
+  const [dataVersion, setDataVersion] = useState(0);
 
   // Reset hasData when all tickers are removed
   useEffect(() => {
@@ -102,7 +104,14 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
 
   const handleRowData = useCallback(
     (ticker: string, row: StockRowData | null) => {
+      const prev = rowDataMap.get(ticker);
       rowDataMap.set(ticker, row);
+      // Only bump version when data actually changes (avoids infinite render loops
+      // since onData is called during child render).
+      if (row !== prev) {
+        // Schedule the state update for after render via microtask
+        queueMicrotask(() => setDataVersion((v) => v + 1));
+      }
       if (row && !hasData) setHasData(true);
     },
     [rowDataMap, hasData],
@@ -225,6 +234,9 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
           {refreshError}
           <button className="gs-refresh-error-dismiss" onClick={() => setRefreshError(null)} aria-label="Dismiss">✕</button>
         </div>
+      )}
+      {hasData && (
+        <Heatmap rowDataMap={rowDataMap} tickers={sortedTickers} dataVersion={dataVersion} />
       )}
       <div className="gs-table-wrap">
         <table className="gs-table" role="table" aria-label="Ticker table" ref={tableRef}>

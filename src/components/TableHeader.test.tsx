@@ -22,16 +22,14 @@ describe('TableHeader', () => {
   it('renders all column headers including star', () => {
     render(
       <table>
-        <TableHeader sortColumn={null} sortDirection="asc" onSort={() => {}} {...baseProps} />
+        <TableHeader sortCriteria={[]} onSort={() => {}} {...baseProps} />
       </table>,
     );
     const headers = screen.getAllByRole('columnheader');
-    // 17 data columns + star column + 1 empty header for the remove-button column
     expect(headers).toHaveLength(COLUMNS.length + 2);
     COLUMNS.forEach((col, i) => {
       expect(headers[i]).toHaveTextContent(col.label);
     });
-    // Star header is second from right
     expect(headers[COLUMNS.length]).toHaveAttribute('aria-label', 'Star');
   });
 
@@ -39,17 +37,17 @@ describe('TableHeader', () => {
     const onSort = vi.fn();
     render(
       <table>
-        <TableHeader sortColumn={null} sortDirection="asc" onSort={onSort} {...baseProps} />
+        <TableHeader sortCriteria={[]} onSort={onSort} {...baseProps} />
       </table>,
     );
     fireEvent.click(screen.getByText('Price'));
-    expect(onSort).toHaveBeenCalledWith('price');
+    expect(onSort).toHaveBeenCalledWith('price', false);
   });
 
   it('shows ▲ indicator on the active column when ascending', () => {
     render(
       <table>
-        <TableHeader sortColumn="price" sortDirection="asc" onSort={() => {}} {...baseProps} />
+        <TableHeader sortCriteria={[{ column: 'price', direction: 'asc' }]} onSort={() => {}} {...baseProps} />
       </table>,
     );
     const priceHeader = screen.getByText('Price').closest('th')!;
@@ -60,7 +58,7 @@ describe('TableHeader', () => {
   it('shows ▼ indicator on the active column when descending', () => {
     render(
       <table>
-        <TableHeader sortColumn="eps" sortDirection="desc" onSort={() => {}} {...baseProps} />
+        <TableHeader sortCriteria={[{ column: 'eps', direction: 'desc' }]} onSort={() => {}} {...baseProps} />
       </table>,
     );
     const epsHeader = screen.getByText('EPS').closest('th')!;
@@ -71,7 +69,7 @@ describe('TableHeader', () => {
   it('does not show sort indicator on inactive columns', () => {
     render(
       <table>
-        <TableHeader sortColumn="price" sortDirection="asc" onSort={() => {}} {...baseProps} />
+        <TableHeader sortCriteria={[{ column: 'price', direction: 'asc' }]} onSort={() => {}} {...baseProps} />
       </table>,
     );
     const tickerHeader = screen.getByText('Ticker').closest('th')!;
@@ -84,18 +82,18 @@ describe('TableHeader', () => {
     const onSort = vi.fn();
     render(
       <table>
-        <TableHeader sortColumn={null} sortDirection="asc" onSort={onSort} {...baseProps} />
+        <TableHeader sortCriteria={[]} onSort={onSort} {...baseProps} />
       </table>,
     );
     const starHeader = screen.getByLabelText('Star');
     fireEvent.click(starHeader);
-    expect(onSort).toHaveBeenCalledWith('star');
+    expect(onSort).toHaveBeenCalledWith('star', false);
   });
 
-  it('shows sort indicator on star header when star is the active sort column', () => {
+  it('shows sort indicator on star header when star is active', () => {
     render(
       <table>
-        <TableHeader sortColumn="star" sortDirection="asc" onSort={() => {}} {...baseProps} />
+        <TableHeader sortCriteria={[{ column: 'star', direction: 'asc' }]} onSort={() => {}} {...baseProps} />
       </table>,
     );
     const starHeader = screen.getByLabelText('Star');
@@ -106,11 +104,41 @@ describe('TableHeader', () => {
   it('shows descending indicator on star header', () => {
     render(
       <table>
-        <TableHeader sortColumn="star" sortDirection="desc" onSort={() => {}} {...baseProps} />
+        <TableHeader sortCriteria={[{ column: 'star', direction: 'desc' }]} onSort={() => {}} {...baseProps} />
       </table>,
     );
     const starHeader = screen.getByLabelText('Star');
     expect(starHeader).toHaveAttribute('aria-sort', 'descending');
     expect(starHeader.textContent).toContain('▼');
+  });
+
+  it('shows priority numbers when multiple sorts are active', () => {
+    render(
+      <table>
+        <TableHeader
+          sortCriteria={[
+            { column: 'sector', direction: 'asc' },
+            { column: 'price', direction: 'desc' },
+          ]}
+          onSort={() => {}}
+          {...baseProps}
+        />
+      </table>,
+    );
+    const sectorHeader = screen.getByText('Sector').closest('th')!;
+    const priceHeader = screen.getByText('Price').closest('th')!;
+    expect(sectorHeader.textContent).toContain('1');
+    expect(priceHeader.textContent).toContain('2');
+  });
+
+  it('passes shift key state as multi parameter on shift+click', () => {
+    const onSort = vi.fn();
+    render(
+      <table>
+        <TableHeader sortCriteria={[]} onSort={onSort} {...baseProps} />
+      </table>,
+    );
+    fireEvent.click(screen.getByText('Price'), { shiftKey: true });
+    expect(onSort).toHaveBeenCalledWith('price', true);
   });
 });

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { ColumnKey, SortKey, StockRowData } from '../types';
+import { ColumnKey, SortKey, SortCriterion, StockRowData } from '../types';
 import { COLUMNS } from '../columns';
 
 /**
@@ -13,67 +13,93 @@ export function filterTickers(tickers: string[], query: string): string[] {
 }
 
 /**
- * Sorts StockRowData[] by the given column and direction.
- * Uses numeric comparison for numeric sortType columns, alpha for text columns.
+ * Sorts StockRowData[] by multiple sort criteria (multi-column sort).
+ * Earlier criteria in the array take higher priority.
  * Returns a new array — does NOT modify the input.
  */
 export function sortRows(
   rows: StockRowData[],
-  column: ColumnKey | null,
-  direction: 'asc' | 'desc',
+  criteria: SortCriterion[],
 ): StockRowData[] {
-  if (!column) return rows;
-
-  const colDef = COLUMNS.find((c) => c.key === column);
-  if (!colDef) return rows;
+  if (criteria.length === 0) return rows;
 
   const sorted = [...rows];
-  const dir = direction === 'asc' ? 1 : -1;
 
   sorted.sort((a, b) => {
-    const aVal = a[column];
-    const bVal = b[column];
+    for (const { column, direction } of criteria) {
+      // Skip the virtual 'star' column — handled separately in TickerTable
+      if (column === 'star') continue;
 
-    // Nulls always sort to the end regardless of direction
-    if (aVal == null && bVal == null) return 0;
-    if (aVal == null) return 1;
-    if (bVal == null) return -1;
+      const colDef = COLUMNS.find((c) => c.key === column);
+      if (!colDef) continue;
 
-    if (colDef.sortType === 'numeric') {
-      return ((aVal as number) - (bVal as number)) * dir;
+      const aVal = a[column as ColumnKey];
+      const bVal = b[column as ColumnKey];
+
+      // Nulls always sort to the end regardless of direction
+      if (aVal == null && bVal == null) continue;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+
+      const dir = direction === 'asc' ? 1 : -1;
+      let cmp = 0;
+
+      if (colDef.sortType === 'numeric') {
+        cmp = (aVal as number) - (bVal as number);
+      } else {
+        cmp = String(aVal).localeCompare(String(bVal));
+      }
+
+      if (cmp !== 0) return cmp * dir;
     }
-
-    // Alpha sort
-    return String(aVal).localeCompare(String(bVal)) * dir;
+    return 0;
   });
 
   return sorted;
 }
 
 /**
- * Hook that manages table search query, sort column, and sort direction state.
+ * Hook that manages table search query and multi-column sort state.
+ *
+ * - Plain click: replaces all sort criteria with the clicked column.
+ * - Shift+click: adds the column as a secondary (or further) sort criterion,
+ *   or toggles its direction if already present, or removes it on third shift-click.
  */
 export function useTableState() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortColumn, setSortColumn] = useState<SortKey | null>(null);
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortCriteria, setSortCriteria] = useState<SortCriterion[]>([]);
 
   const onSort = useCallback(
-    (col: SortKey) => {
-      if (sortColumn === col) {
-        if (sortDirection === 'asc') {
-          setSortDirection('desc');
-        } else {
-          // Third click: clear the sort
-          setSortColumn(null);
-          setSortDirection('asc');
+    (col: SortKey, multi = false) => {
+      setSortCriteria((prev) => {
+        const idx = prev.findIndex((c) => c.column === col);
+
+        if (multi) {
+          // Shift+click: add, toggle, or remove from the list
+          if (idx === -1) {
+            return [...prev, { column: col, direction: 'asc' }];
+          }
+          if (prev[idx].direction === 'asc') {
+            const next = [...prev];
+            next[idx] = { column: col, direction: 'desc' };
+            return next;
+          }
+          // Third shift-click: remove this criterion
+          return prev.filter((_, i) => i !== idx);
         }
-      } else {
-        setSortColumn(col);
-        setSortDirection('asc');
-      }
+
+        // Plain click: single-column sort with 3-click cycle
+        if (idx !== -1 && prev.length === 1) {
+          if (prev[0].direction === 'asc') {
+            return [{ column: col, direction: 'desc' }];
+          }
+          // Third click: clear
+          return [];
+        }
+        return [{ column: col, direction: 'asc' }];
+      });
     },
-    [sortColumn, sortDirection],
+    [],
   );
 
   const onSearchChange = useCallback((q: string) => {
@@ -83,8 +109,7 @@ export function useTableState() {
   return {
     searchQuery,
     onSearchChange,
-    sortColumn,
-    sortDirection,
+    sortCriteria,
     onSort,
     filterTickers,
     sortRows,

@@ -58,6 +58,14 @@ export interface StockRowData {
 export type SortKey = ColumnKey | 'star';
 
 /**
+ * A single sort criterion used in multi-column sorting.
+ */
+export interface SortCriterion {
+  column: SortKey;
+  direction: 'asc' | 'desc';
+}
+
+/**
  * Union type of all valid column keys.
  */
 export type ColumnKey =

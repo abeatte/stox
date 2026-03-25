@@ -181,6 +181,12 @@ body {
   color: #1a73e8;
 }
 
+.gs-sort-priority {
+  font-size: 9px;
+  margin-left: 1px;
+  opacity: 0.8;
+}
+
 /* ── Body rows ── */
 .gs-table tbody tr {
   transition: background 0.1s;

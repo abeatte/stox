@@ -1,11 +1,10 @@
 import type { RefObject } from 'react';
 import { COLUMNS } from '../columns';
-import { ColumnKey, SortKey } from '../types';
+import { ColumnKey, SortKey, SortCriterion } from '../types';
 
 export interface TableHeaderProps {
-  sortColumn: SortKey | null;
-  sortDirection: 'asc' | 'desc';
-  onSort: (col: SortKey) => void;
+  sortCriteria: SortCriterion[];
+  onSort: (col: SortKey, multi?: boolean) => void;
   columnWidths: Record<ColumnKey, number>;
   onResizeStart: (key: ColumnKey, e: React.MouseEvent) => void;
   onAutoFit: (key: ColumnKey) => void;
@@ -15,21 +14,22 @@ export interface TableHeaderProps {
 /**
  * Renders a <colgroup> for column widths, then the header row.
  * Each header cell has a draggable resize handle on its right edge.
+ * Supports multi-column sort: shows arrow + priority number when multiple sorts are active.
  */
 export function TableHeader({
-  sortColumn,
-  sortDirection,
+  sortCriteria,
   onSort,
   columnWidths,
   onResizeStart,
   onAutoFit,
   isResizingRef,
 }: TableHeaderProps) {
-  const handleHeaderClick = (key: ColumnKey) => {
-    // Suppress sort when a column resize just finished
+  const handleHeaderClick = (key: SortKey, e: React.MouseEvent) => {
     if (isResizingRef.current) return;
-    onSort(key);
+    onSort(key, e.shiftKey);
   };
+
+  const multiSort = sortCriteria.length > 1;
 
   return (
     <>
@@ -37,22 +37,22 @@ export function TableHeader({
         {COLUMNS.map((col) => (
           <col key={col.key} style={{ width: columnWidths[col.key] }} />
         ))}
-        {/* col for the star column */}
         <col style={{ width: 36 }} />
-        {/* col for the remove-button column */}
         <col style={{ width: 36 }} />
       </colgroup>
       <thead>
         <tr>
           {COLUMNS.map((col) => {
-            const isActive = sortColumn === col.key;
+            const sortIdx = sortCriteria.findIndex((c) => c.column === col.key);
+            const isActive = sortIdx !== -1;
+            const direction = isActive ? sortCriteria[sortIdx].direction : undefined;
             return (
               <th
                 key={col.key}
-                onClick={() => handleHeaderClick(col.key)}
+                onClick={(e) => handleHeaderClick(col.key, e)}
                 aria-sort={
                   isActive
-                    ? sortDirection === 'asc'
+                    ? direction === 'asc'
                       ? 'ascending'
                       : 'descending'
                     : undefined
@@ -61,12 +61,12 @@ export function TableHeader({
                 <span className="gs-th-content">
                   {isActive && (
                     <span aria-hidden="true" className="gs-sort-arrow">
-                      {sortDirection === 'asc' ? '▲' : '▼'}
+                      {direction === 'asc' ? '▲' : '▼'}
+                      {multiSort && <sup className="gs-sort-priority">{sortIdx + 1}</sup>}
                     </span>
                   )}
                   {col.label}
                 </span>
-                {/* Resize handle */}
                 <span
                   className="gs-resize-handle"
                   onMouseDown={(e) => onResizeStart(col.key, e)}
@@ -84,25 +84,29 @@ export function TableHeader({
           <th
             style={{ width: 36, cursor: 'pointer', paddingLeft: 13 }}
             aria-label="Star"
-            onClick={() => onSort('star')}
+            onClick={(e) => handleHeaderClick('star', e)}
             aria-sort={
-              sortColumn === 'star'
-                ? sortDirection === 'asc'
-                  ? 'ascending'
-                  : 'descending'
-                : undefined
+              (() => {
+                const idx = sortCriteria.findIndex((c) => c.column === 'star');
+                if (idx === -1) return undefined;
+                return sortCriteria[idx].direction === 'asc' ? 'ascending' : 'descending';
+              })()
             }
           >
             <span className="gs-th-content">
-              {sortColumn === 'star' && (
-                <span aria-hidden="true" className="gs-sort-arrow">
-                  {sortDirection === 'asc' ? '▲' : '▼'}
-                </span>
-              )}
+              {(() => {
+                const idx = sortCriteria.findIndex((c) => c.column === 'star');
+                if (idx === -1) return null;
+                return (
+                  <span aria-hidden="true" className="gs-sort-arrow">
+                    {sortCriteria[idx].direction === 'asc' ? '▲' : '▼'}
+                    {multiSort && <sup className="gs-sort-priority">{idx + 1}</sup>}
+                  </span>
+                );
+              })()}
               ★
             </span>
           </th>
-          {/* Empty header for remove column */}
           <th />
         </tr>
       </thead>

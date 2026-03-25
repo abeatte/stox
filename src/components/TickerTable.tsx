@@ -73,8 +73,7 @@ export function TickerTable() {
   const {
     searchQuery,
     onSearchChange,
-    sortColumn,
-    sortDirection,
+    sortCriteria,
     onSort,
     filterTickers,
     sortRows,
@@ -117,19 +116,7 @@ export function TickerTable() {
   // Build sorted ticker order using collected row data.
   // Tickers still loading / errored are appended at the bottom.
   const sortedTickers = useMemo(() => {
-    if (!sortColumn) return filteredTickers;
-
-    // Star sort operates on ticker names directly using the starred set
-    if (sortColumn === 'star') {
-      const sorted = [...filteredTickers];
-      const dir = sortDirection === 'asc' ? 1 : -1;
-      sorted.sort((a, b) => {
-        const aStarred = starredTickers.has(a) ? 1 : 0;
-        const bStarred = starredTickers.has(b) ? 1 : 0;
-        return (bStarred - aStarred) * dir;
-      });
-      return sorted;
-    }
+    if (sortCriteria.length === 0) return filteredTickers;
 
     const withData: StockRowData[] = [];
     const withoutData: string[] = [];
@@ -143,9 +130,31 @@ export function TickerTable() {
       }
     }
 
-    const sorted = sortRows(withData, sortColumn, sortDirection);
-    return [...sorted.map((r) => r.ticker), ...withoutData];
-  }, [filteredTickers, sortColumn, sortDirection, sortRows, rowDataMap, starredTickers]);
+    // Handle star sort by pre-sorting tickers, then applying data-based criteria
+    const starCriterion = sortCriteria.find((c) => c.column === 'star');
+    const dataCriteria = sortCriteria.filter((c) => c.column !== 'star');
+
+    let sortedWithData: StockRowData[];
+    if (dataCriteria.length > 0) {
+      sortedWithData = sortRows(withData, dataCriteria);
+    } else {
+      sortedWithData = withData;
+    }
+
+    let result = [...sortedWithData.map((r) => r.ticker), ...withoutData];
+
+    if (starCriterion) {
+      const dir = starCriterion.direction === 'asc' ? 1 : -1;
+      // Stable sort: starred items float to top (or bottom) while preserving relative order
+      result = [...result].sort((a, b) => {
+        const aStarred = starredTickers.has(a) ? 1 : 0;
+        const bStarred = starredTickers.has(b) ? 1 : 0;
+        return (bStarred - aStarred) * dir;
+      });
+    }
+
+    return result;
+  }, [filteredTickers, sortCriteria, sortRows, rowDataMap, starredTickers]);
 
   // Export handler
   const handleExport = useCallback(() => {
@@ -208,8 +217,7 @@ export function TickerTable() {
       <div className="gs-table-wrap">
         <table className="gs-table" role="table" aria-label="Ticker table" ref={tableRef}>
           <TableHeader
-            sortColumn={sortColumn}
-            sortDirection={sortDirection}
+            sortCriteria={sortCriteria}
             onSort={onSort}
             columnWidths={widths}
             onResizeStart={onResizeStart}

@@ -2,13 +2,23 @@
  * Yahoo Finance scraper — Puppeteer.
  * All page fetches use a shared headless Chrome instance.
  */
-import puppeteer, { type Browser, type Page, type HTTPResponse } from 'puppeteer';
+import puppeteer, { type Browser, type ElementHandle, type Page, type HTTPResponse } from 'puppeteer';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CACHE_FILE = resolve(__dirname, '.stock-cache.json');
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Type-safe error extraction from catch blocks. */
+function toError(err: unknown): Error {
+  if (err instanceof Error) return err;
+  return new Error(String(err));
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -60,15 +70,23 @@ interface RealtimePriceData {
   changePercent: number | null;
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-interface QuoteSummaryResult {
-  financialData?: Record<string, any>;
-  summaryDetail?: Record<string, any>;
-  defaultKeyStatistics?: Record<string, any>;
-  assetProfile?: Record<string, any>;
-  price?: Record<string, any>;
+/** A Yahoo Finance field that may contain a raw numeric value. */
+interface YahooField {
+  raw?: number;
+  fmt?: string;
+  longFmt?: string;
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** Loosely-typed sub-object from Yahoo's quoteSummary response. */
+type YahooSection = Record<string, YahooField | string | number | null | undefined>;
+
+interface QuoteSummaryResult {
+  financialData?: YahooSection;
+  summaryDetail?: YahooSection;
+  defaultKeyStatistics?: YahooSection;
+  assetProfile?: YahooSection;
+  price?: YahooSection;
+}
 
 // ---------------------------------------------------------------------------
 // Cache
@@ -104,7 +122,7 @@ export function saveCache(): void {
     const obj = Object.fromEntries(cache.entries());
     writeFileSync(CACHE_FILE, JSON.stringify(obj, null, 2) + '\n');
   } catch (err) {
-    console.warn('[scraper] Failed to save cache:', (err as Error).message);
+    console.warn('[scraper] Failed to save cache:', toError(err).message);
   }
 }
 
@@ -158,7 +176,7 @@ export async function warmUp(): Promise<void> {
     await getBrowser();
     console.log('[scraper] Chrome browser ready');
   } catch (err) {
-    console.warn('[scraper] Chrome not available:', (err as Error).message);
+    console.warn('[scraper] Chrome not available:', toError(err).message);
   }
 }
 
@@ -268,7 +286,7 @@ async function fetchProfile(ticker: string, signal?: AbortSignal): Promise<Profi
     try {
       const result = parseQuoteSummaryHtml(ticker, html);
       const ap = result?.assetProfile;
-      if (ap) return { sector: ap.sector ?? null, industry: ap.industry ?? null };
+      if (ap) return { sector: toStringVal(ap.sector), industry: toStringVal(ap.industry) };
     } catch { /* not in HTML */ }
 
     const profileData = await page.evaluate(() => {
@@ -288,7 +306,7 @@ async function fetchProfile(ticker: string, signal?: AbortSignal): Promise<Profi
     if (profileData.sector || profileData.industry) return profileData;
     return null;
   } catch (err) {
-    console.warn(`[${ticker}] Profile fetch failed:`, (err as Error).message);
+    console.warn(`[${ticker}] Profile fetch failed:`, toError(err).message);
     return null;
   } finally {
     await cleanup();
@@ -315,14 +333,17 @@ async function scrapeBalanceSheet(ticker: string, signal?: AbortSignal): Promise
     await new Promise<void>((r) => setTimeout(r, 5000));
 
     try {
-      const expandBtn = await page.evaluateHandle(() => {
+      // Find and click the "Expand All" button
+      const expandAllBtn = await page.evaluateHandle(() => {
         const buttons = [...document.querySelectorAll('button')];
         return buttons.find((b) => b.textContent?.trim() === 'Expand All') ?? null;
       });
-      if (expandBtn) {
-        await (expandBtn as unknown as { click: () => Promise<void> }).click();
+      const element = expandAllBtn.asElement();
+      if (element) {
+        await (element as ElementHandle<HTMLButtonElement>).click();
         await new Promise<void>((r) => setTimeout(r, 3000));
       }
+      await expandAllBtn.dispose();
     } catch { /* no expand button */ }
 
     const data: BalanceSheetData = await page.evaluate(() => {
@@ -362,7 +383,7 @@ async function scrapeBalanceSheet(ticker: string, signal?: AbortSignal): Promise
     });
     return data;
   } catch (err) {
-    console.warn(`[${ticker}] Balance sheet scrape failed:`, (err as Error).message);
+    console.warn(`[${ticker}] Balance sheet scrape failed:`, toError(err).message);
     return null;
   } finally {
     await cleanup();
@@ -385,9 +406,15 @@ async function getRealtimePrice(ticker: string, signal?: AbortSignal): Promise<R
     await page.waitForSelector('section[data-testid="price-statistic"]', { timeout: 10000 }).catch(() => {});
     await new Promise<void>((r) => setTimeout(r, 2000));
 
-    const priceData = await page.evaluate(() => {
+    interface ScrapedPriceData {
+      price: string | null;
+      changePercent: number | null;
+      prevClose: string | null;
+    }
+
+    const priceData: ScrapedPriceData = await page.evaluate(() => {
       const section = document.querySelector('section[data-testid="price-statistic"]');
-      if (!section) return { price: null as string | null, changePercent: null as number | null, prevClose: null as string | null };
+      if (!section) return { price: null, changePercent: null, prevClose: null };
 
       const priceEl = section.querySelector('[data-testid="qsp-price"]');
       const changePercentEl = section.querySelector('[data-testid="qsp-price-change-percent"]');
@@ -437,13 +464,17 @@ async function getRealtimePrice(ticker: string, signal?: AbortSignal): Promise<R
 // Number parsing
 // ---------------------------------------------------------------------------
 
-function rawVal(field: unknown): number | null {
+function rawVal(field: YahooField | string | number | null | undefined): number | null {
   if (field == null) return null;
   if (typeof field === 'number') return field;
-  if (typeof field === 'object' && field !== null && 'raw' in field) {
-    const raw = (field as { raw: unknown }).raw;
-    return typeof raw === 'number' ? raw : null;
-  }
+  if (typeof field === 'string') return null;
+  if ('raw' in field && typeof field.raw === 'number') return field.raw;
+  return null;
+}
+
+/** Extract a string value from a YahooSection field. */
+function toStringVal(field: YahooField | string | number | null | undefined): string | null {
+  if (typeof field === 'string') return field;
   return null;
 }
 
@@ -527,8 +558,8 @@ export async function fetchTickerData(ticker: string, signal?: AbortSignal): Pro
   // 4. Profile (sector/industry)
   console.log(`[${symbol}] Stage 4/4: Fetching profile...`);
   const profile = await fetchProfile(symbol, signal);
-  const sector = profile?.sector || ap.sector || null;
-  const industry = profile?.industry || ap.industry || null;
+  const sector = profile?.sector || toStringVal(ap.sector);
+  const industry = profile?.industry || toStringVal(ap.industry);
 
   const result: TickerResult = {
     ticker: symbol,

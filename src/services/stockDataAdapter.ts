@@ -1,5 +1,8 @@
 import type { RawStockData } from '../types';
 
+/** Result type for refreshStocks — either full data or an error stub. */
+export type RefreshResult = RawStockData & { error?: string };
+
 /**
  * Abstract interface for fetching stock data.
  * Concrete implementations can swap the underlying data source
@@ -7,7 +10,7 @@ import type { RawStockData } from '../types';
  */
 export interface StockDataAdapter {
   fetchStock(ticker: string, signal?: AbortSignal): Promise<RawStockData>;
-  refreshStocks(tickers: string[], signal?: AbortSignal): Promise<(RawStockData & { error?: string })[]>;
+  refreshStocks(tickers: string[], signal?: AbortSignal): Promise<RefreshResult[]>;
 }
 
 /** Safely coerce a value to number or null. */
@@ -17,18 +20,24 @@ export function toNum(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Safely extract a string value. */
+function toStr(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  return null;
+}
+
 /**
  * Normalize a raw API response object into a RawStockData shape.
  * Shared by fetchStock and refreshStocks to avoid field-mapping duplication.
  */
 export function normalizeStockData(data: Record<string, unknown>, fallbackTicker = ''): RawStockData {
   return {
-    ticker: (data.ticker as string) ?? fallbackTicker,
+    ticker: toStr(data.ticker) ?? fallbackTicker,
     price: toNum(data.price),
     changePercent: toNum(data.changePercent),
-    date: (data.date as string) ?? null,
-    sector: (data.sector as string) ?? null,
-    industry: (data.industry as string) ?? null,
+    date: toStr(data.date),
+    sector: toStr(data.sector),
+    industry: toStr(data.industry),
     divYield: toNum(data.divYield),
     eps: toNum(data.eps),
     totalAssets: toNum(data.totalAssets),
@@ -69,7 +78,7 @@ export class YahooFinanceAdapter implements StockDataAdapter {
     return normalizeStockData(data, symbol);
   }
 
-  async refreshStocks(tickers: string[], signal?: AbortSignal): Promise<(RawStockData & { error?: string })[]> {
+  async refreshStocks(tickers: string[], signal?: AbortSignal): Promise<RefreshResult[]> {
     const response = await fetch('http://localhost:3001/api/refresh-stocks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -81,9 +90,12 @@ export class YahooFinanceAdapter implements StockDataAdapter {
     }
 
     const { results } = await response.json();
-    return results.map((r: Record<string, unknown>) => {
+    return (results as Record<string, unknown>[]).map((r): RefreshResult => {
       if (r.error) {
-        return { ticker: r.ticker as string, error: r.error as string } as RawStockData & { error: string };
+        return {
+          ...normalizeStockData({ ticker: r.ticker }),
+          error: String(r.error),
+        };
       }
       return normalizeStockData(r);
     });

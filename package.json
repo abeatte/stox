@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "server": "npx tsx server/index.ts",
-    "dev:all": "concurrently -n server,vite -c blue,green \"npx tsx server/index.ts\" \"vite\"",
+    "server": "tsc -p tsconfig.server.json && node dist/server/index.js",
+    "dev:all": "tsc -p tsconfig.server.json && concurrently -n server,vite -c blue,green \"node dist/server/index.js\" \"vite\"",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",

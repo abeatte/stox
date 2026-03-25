@@ -30,11 +30,12 @@ export function sortRows(
       // Skip the virtual 'star' column — handled separately in TickerTable
       if (column === 'star') continue;
 
-      const colDef = COLUMNS.find((c) => c.key === column);
+      const colKey = column as ColumnKey;
+      const colDef = COLUMNS.find((c) => c.key === colKey);
       if (!colDef) continue;
 
-      const aVal = a[column as ColumnKey];
-      const bVal = b[column as ColumnKey];
+      const aVal = a[colKey];
+      const bVal = b[colKey];
 
       // Nulls always sort to the end regardless of direction
       if (aVal == null && bVal == null) continue;
@@ -45,7 +46,7 @@ export function sortRows(
       let cmp = 0;
 
       if (colDef.sortType === 'numeric') {
-        cmp = (aVal as number) - (bVal as number);
+        cmp = Number(aVal) - Number(bVal);
       } else {
         cmp = String(aVal).localeCompare(String(bVal));
       }

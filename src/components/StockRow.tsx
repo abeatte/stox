@@ -4,34 +4,34 @@ import { COLUMNS } from '../columns';
 import { StockRowData, ColumnKey } from '../types';
 import { formatValue, formatCurrency } from '../utils/formatters';
 
+/** Value type for cells that can be highlighted. */
+type CellValue = string | number | null;
+
 /**
  * Returns a CSS highlight class for specific cells based on value thresholds.
  */
-export function getCellHighlight(key: ColumnKey, value: unknown): string | undefined {
+export function getCellHighlight(key: ColumnKey, value: CellValue): string | undefined {
   if (key === 'dividendPercent' || key === 'divYield') {
-    if (value === null || value === undefined || value === 0) return 'gs-cell-yellow';
+    if (value === null || value === 0) return 'gs-cell-yellow';
   }
 
   if (key === 'eps') {
-    const n = value as number | null;
-    if (n === null || n === undefined) return undefined;
-    if (n < 0) return 'gs-cell-red';
+    if (typeof value !== 'number') return undefined;
+    if (value < 0) return 'gs-cell-red';
   }
 
   if (key === 'pBook' || key === 'pTangbook') {
-    const n = value as number | null;
-    if (n === null || n === undefined) return undefined;
-    if (n >= 0.15 && n <= 0.85) return 'gs-cell-green';
-    if (n > 0.85 && n <= 1.15) return 'gs-cell-yellow';
-    if (n < 0.15 || n > 1.15) return 'gs-cell-red';
+    if (typeof value !== 'number') return undefined;
+    if (value >= 0.15 && value <= 0.85) return 'gs-cell-green';
+    if (value > 0.85 && value <= 1.15) return 'gs-cell-yellow';
+    if (value < 0.15 || value > 1.15) return 'gs-cell-red';
   }
 
   if (key === 'priceEarnings') {
-    const n = value as number | null;
-    if (n === null || n === undefined) return undefined;
-    if (n >= 0 && n <= 15) return 'gs-cell-green';
-    if (n > 15 && n <= 20) return 'gs-cell-yellow';
-    if (n > 20 || n < 0) return 'gs-cell-red';
+    if (typeof value !== 'number') return undefined;
+    if (value >= 0 && value <= 15) return 'gs-cell-green';
+    if (value > 15 && value <= 20) return 'gs-cell-yellow';
+    if (value > 20 || value < 0) return 'gs-cell-red';
   }
 
   return undefined;

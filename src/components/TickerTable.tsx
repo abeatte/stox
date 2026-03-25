@@ -197,16 +197,16 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
     setRefreshError(null);
     try {
       const results = await stockDataAdapter.refreshStocks(tickers, controller.signal);
-      const failed = results.filter((r: any) => r.error);
+      const failed = results.filter((r) => r.error);
       if (failed.length > 0) {
-        setRefreshError(`Refresh failed for: ${failed.map((r: any) => r.ticker).join(', ')}`);
+        setRefreshError(`Refresh failed for: ${failed.map((r) => r.ticker).join(', ')}`);
       }
       for (const result of results) {
         if (result.error) continue;
         queryClient.setQueryData<RawStockData>(['stock', result.ticker], result);
       }
     } catch (err) {
-      if ((err as DOMException).name === 'AbortError') {
+      if (err instanceof DOMException && err.name === 'AbortError') {
         console.log('Price refresh aborted');
         return;
       }

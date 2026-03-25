@@ -13,6 +13,17 @@ import { fetchTickerData, refreshStock, closeBrowser, warmUp, saveCache } from '
 const app = express();
 const PORT = 3001;
 
+/** Type-safe error extraction from catch blocks. */
+function toError(err: unknown): Error {
+  if (err instanceof Error) return err;
+  return new Error(String(err));
+}
+
+/** Check if an error represents an aborted request. */
+function isAbortError(err: Error): boolean {
+  return err.name === 'AbortError' || err.message === 'Aborted';
+}
+
 app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -24,8 +35,8 @@ app.options('/{*path}', (_req: Request, res: Response) => { res.sendStatus(204);
 
 app.use(express.json());
 
-app.get('/api/stock/:ticker', async (req: Request, res: Response) => {
-  const ticker = req.params.ticker as string;
+app.get('/api/stock/:ticker', async (req: Request<{ ticker: string }>, res: Response) => {
+  const { ticker } = req.params;
 
   if (!ticker || !/^[A-Za-z.-]{1,10}$/.test(ticker)) {
     res.status(400).json({ error: 'Invalid ticker symbol' });
@@ -39,8 +50,8 @@ app.get('/api/stock/:ticker', async (req: Request, res: Response) => {
     const data = await fetchTickerData(ticker, abortController.signal);
     res.json(data);
   } catch (err) {
-    const error = err as Error & { name?: string };
-    if (error.name === 'AbortError' || error.message === 'Aborted') {
+    const error = toError(err);
+    if (isAbortError(error)) {
       console.log(`[server] Fetch aborted for ${ticker.toUpperCase()}`);
       if (!res.headersSent) res.status(499).end();
       return;
@@ -71,16 +82,16 @@ app.post('/api/refresh-stocks', async (req: Request, res: Response) => {
         const result = await refreshStock(ticker, abortController.signal);
         results.push(result);
       } catch (err) {
-        const error = err as Error & { name?: string };
-        if (error.name === 'AbortError' || error.message === 'Aborted') throw err;
+        const error = toError(err);
+        if (isAbortError(error)) throw err;
         console.warn(`[server] Refresh failed for ${ticker}:`, error.message);
         results.push({ ticker: ticker.toUpperCase(), price: null, changePercent: null, error: error.message });
       }
     }
     if (!res.headersSent) res.json({ results });
   } catch (err) {
-    const error = err as Error & { name?: string };
-    if (error.name === 'AbortError' || error.message === 'Aborted') {
+    const error = toError(err);
+    if (isAbortError(error)) {
       console.log('[server] Refresh aborted');
       if (!res.headersSent) res.status(499).end();
       return;

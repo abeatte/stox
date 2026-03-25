@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   getTickerList,
   setTickerList,
+  getStarredTickers,
+  setStarredTickers,
 } from './localStorageService';
 
 describe('localStorageService', () => {
@@ -34,6 +36,34 @@ describe('localStorageService', () => {
       setTickerList(['AAPL']);
       setTickerList(['MSFT', 'GOOG']);
       expect(getTickerList()).toEqual(['MSFT', 'GOOG']);
+    });
+  });
+
+  describe('getStarredTickers / setStarredTickers', () => {
+    it('returns empty array when nothing is stored', () => {
+      expect(getStarredTickers()).toEqual([]);
+    });
+
+    it('round-trips a starred list', () => {
+      const starred = ['AAPL', 'MSFT'];
+      setStarredTickers(starred);
+      expect(getStarredTickers()).toEqual(starred);
+    });
+
+    it('returns empty array for corrupted JSON', () => {
+      localStorage.setItem('stox:starred', '{not valid json');
+      expect(getStarredTickers()).toEqual([]);
+    });
+
+    it('returns empty array when stored value is not an array', () => {
+      localStorage.setItem('stox:starred', '"hello"');
+      expect(getStarredTickers()).toEqual([]);
+    });
+
+    it('overwrites previous starred list', () => {
+      setStarredTickers(['AAPL']);
+      setStarredTickers(['MSFT', 'GOOG']);
+      expect(getStarredTickers()).toEqual(['MSFT', 'GOOG']);
     });
   });
 });

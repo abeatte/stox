@@ -67,7 +67,7 @@ function StockRowWithData({
  * Composes ToolBar, TableHeader, and StockRow[] in a horizontally scrollable table.
  * Wires useTickerList, useInterestMap, useStockData (via StockRowWithData), and useTableState.
  */
-export function TickerTable() {
+export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
   const [tickers, addTicker, removeTicker] = useTickerList();
   const [starredTickers, toggleStar] = useStarredTickers();
   const {
@@ -213,6 +213,7 @@ export function TickerTable() {
         hasData={hasData}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
+        onHelpOpen={onHelpOpen}
       />
       <div className="gs-table-wrap">
         <table className="gs-table" role="table" aria-label="Ticker table" ref={tableRef}>

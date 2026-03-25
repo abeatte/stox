@@ -509,3 +509,122 @@ body {
 .gs-footer a:hover {
   text-decoration: underline;
 }
+
+/* ── Help button (inline in toolbar / empty state) ── */
+.gs-help-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid #dadce0;
+  background: #fff;
+  color: #5f6368;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.gs-help-btn:hover {
+  background: #e8eaed;
+  color: #202124;
+}
+
+/* ── Help dialog overlay ── */
+.gs-help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Help dialog ── */
+.gs-help-dialog {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+  width: 520px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+
+.gs-help-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.gs-help-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #202124;
+}
+
+.gs-help-close {
+  background: none;
+  border: none;
+  color: #5f6368;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 50%;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.gs-help-close:hover {
+  background: #e8eaed;
+}
+
+.gs-help-body {
+  overflow-y: auto;
+  padding: 16px 20px 20px;
+}
+
+.gs-help-section h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a73e8;
+  margin: 16px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.gs-help-section:first-child h3 {
+  margin-top: 0;
+}
+
+.gs-help-section dl {
+  margin: 0;
+}
+
+.gs-help-row {
+  display: flex;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.gs-help-row dt {
+  flex: 0 0 180px;
+  font-weight: 500;
+  color: #202124;
+}
+
+.gs-help-row dd {
+  margin: 0;
+  color: #5f6368;
+}

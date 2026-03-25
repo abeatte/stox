@@ -9,6 +9,9 @@ function setup(overrides: Partial<Parameters<typeof ToolBar>[0]> = {}) {
     onAddTicker: vi.fn(() => null as string | null),
     onExport: vi.fn(),
     hasData: true,
+    onRefresh: vi.fn(),
+    isRefreshing: false,
+    onHelpOpen: vi.fn(),
     ...overrides,
   };
   render(<ToolBar {...props} />);
@@ -22,6 +25,7 @@ describe('ToolBar', () => {
     expect(screen.getByLabelText('Ticker symbols, comma separated')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Help' })).toBeInTheDocument();
   });
 
   it('calls onSearchChange when typing in search', () => {
@@ -81,5 +85,11 @@ describe('ToolBar', () => {
     const props = setup({ hasData: true });
     fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }));
     expect(props.onExport).toHaveBeenCalled();
+  });
+
+  it('calls onHelpOpen when help button is clicked', () => {
+    const props = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }));
+    expect(props.onHelpOpen).toHaveBeenCalled();
   });
 });

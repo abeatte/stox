@@ -8,6 +8,7 @@ export interface ToolBarProps {
   hasData: boolean;
   onRefresh: () => void;
   isRefreshing: boolean;
+  onHelpOpen: () => void;
 }
 
 function SearchInput({
@@ -100,12 +101,22 @@ export function ToolBar({
   hasData,
   onRefresh,
   isRefreshing,
+  onHelpOpen,
 }: ToolBarProps) {
   return (
     <div role="toolbar" aria-label="Toolbar" className="gs-toolbar">
       <SearchInput value={searchQuery} onChange={onSearchChange} />
       <AddTickerForm onAddTicker={onAddTicker} />
       <ExportButton onExport={onExport} hasData={hasData} />
+      <button
+        type="button"
+        className="gs-help-btn"
+        onClick={onHelpOpen}
+        aria-label="Help"
+        title="Help & Tips"
+      >
+        ?
+      </button>
       <div style={{ marginLeft: 'auto' }}>
         <button
           type="button"

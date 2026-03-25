@@ -9,10 +9,12 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useTickerList } from '../hooks/useTickerList';
 import { TickerTable } from '../components/TickerTable';
 import { EmptyState } from '../components/EmptyState';
+import { HelpDialog } from '../components/HelpDialog';
 import { COLUMNS } from '../columns';
 import type { RawStockData } from '../types';
 
@@ -99,9 +101,16 @@ function renderApp() {
 
   function AppContent() {
     const [tickers, addTicker] = useTickerList();
+    const [helpOpen, setHelpOpen] = useState(false);
+    const openHelp = () => setHelpOpen(true);
     return (
       <main>
-        {tickers.length > 0 ? <TickerTable /> : <EmptyState onAddTicker={addTicker} />}
+        {tickers.length > 0 ? (
+          <TickerTable onHelpOpen={openHelp} />
+        ) : (
+          <EmptyState onAddTicker={addTicker} onHelpOpen={openHelp} />
+        )}
+        <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
       </main>
     );
   }
@@ -697,6 +706,43 @@ describe('Stox Integration Tests', () => {
       expect(JSON.parse(localStorage.getItem('stox:tickers')!)).toEqual([
         'AAPL',
       ]);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Help dialog
+  // -----------------------------------------------------------------------
+  describe('Help dialog', () => {
+    it('opens help dialog from toolbar and closes with close button', async () => {
+      localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
+      const user = userEvent.setup();
+      renderApp();
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Help' })).toBeInTheDocument();
+      });
+
+      // Open help
+      await user.click(screen.getByRole('button', { name: 'Help' }));
+      expect(screen.getByRole('dialog', { name: 'Help and shortcuts' })).toBeInTheDocument();
+      expect(screen.getByText('Help & Tips')).toBeInTheDocument();
+
+      // Close help
+      await user.click(screen.getByLabelText('Close help'));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('shows help button in empty state', () => {
+      renderApp();
+      expect(screen.getByRole('button', { name: 'Help' })).toBeInTheDocument();
+    });
+
+    it('opens help dialog from empty state', async () => {
+      const user = userEvent.setup();
+      renderApp();
+
+      await user.click(screen.getByRole('button', { name: 'Help' }));
+      expect(screen.getByRole('dialog', { name: 'Help and shortcuts' })).toBeInTheDocument();
     });
   });
 });

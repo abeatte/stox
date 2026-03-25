@@ -2,13 +2,14 @@ import { useState, type FormEvent } from 'react';
 
 interface EmptyStateProps {
   onAddTicker: (symbol: string) => string | null;
+  onHelpOpen: () => void;
 }
 
 /**
  * Displayed when no tickers are configured.
  * Includes an add-ticker form so users can get started.
  */
-export function EmptyState({ onAddTicker }: EmptyStateProps) {
+export function EmptyState({ onAddTicker, onHelpOpen }: EmptyStateProps) {
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +45,15 @@ export function EmptyState({ onAddTicker }: EmptyStateProps) {
           </span>
         )}
       </form>
+      <button
+        type="button"
+        className="gs-help-btn"
+        onClick={onHelpOpen}
+        aria-label="Help"
+        title="Help & Tips"
+      >
+        ?
+      </button>
     </div>
   );
 }

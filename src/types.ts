@@ -89,12 +89,14 @@ export type ColumnKey =
   | 'eps15x'
   | 'priceEarnings';
 
+import type { FormatType } from './utils/formatters';
+
 /**
  * Column definition metadata for rendering and sorting.
  */
 export interface ColumnDef {
   key: ColumnKey;
   label: string;
-  type: 'text' | 'currency' | 'percent' | 'ratio' | 'large-number' | 'large-count';
+  type: FormatType;
   sortType: 'alpha' | 'numeric';
 }

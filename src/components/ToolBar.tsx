@@ -1,9 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { AddTickerForm } from './AddTickerForm';
 
 export interface ToolBarProps {
   searchQuery: string;
   onSearchChange: (q: string) => void;
-  onAddTicker: (symbol: string) => string | null; // returns validation error or null
+  onAddTicker: (symbol: string) => string | null;
   onExport: () => void;
   hasData: boolean;
   onRefresh: () => void;
@@ -26,50 +26,6 @@ function SearchInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
     />
-  );
-}
-
-function AddTickerForm({
-  onAddTicker,
-}: {
-  onAddTicker: (symbol: string) => string | null;
-}) {
-  const [input, setInput] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const result = onAddTicker(input);
-    if (result) {
-      setError(result);
-    } else {
-      setError(null);
-    }
-    // Clear input unless nothing was added (empty or all duplicates with no new adds)
-    if (!result || result.startsWith('Added')) {
-      setInput('');
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} aria-label="Add ticker">
-      <input
-        type="text"
-        placeholder="AAPL, MSFT, GOOG"
-        aria-label="Ticker symbols, comma separated"
-        value={input}
-        onChange={(e) => {
-          setInput(e.target.value);
-          if (error) setError(null);
-        }}
-      />
-      <button type="submit">Add</button>
-      {error && (
-        <span role="alert" style={{ color: 'red', marginLeft: 8 }}>
-          {error}
-        </span>
-      )}
-    </form>
   );
 }
 

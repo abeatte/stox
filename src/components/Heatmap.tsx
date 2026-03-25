@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { getDailyColor, getIntrinsicColor } from '../utils/heatmapColors';
 import type { StockRowData } from '../types';
 
 type HeatmapMode = 'daily' | 'intrinsic';
@@ -8,44 +9,6 @@ interface HeatmapProps {
   tickers: string[];
   /** Incremented whenever row data changes, to bust memoisation on the mutable map. */
   dataVersion: number;
-}
-
-/**
- * Returns a CSS background color on a red-to-green pastel scale.
- * Neutral = light grey, positive = soft green, negative = soft red.
- */
-function getDailyColor(changePercent: number | null): string {
-  if (changePercent === null) return '#e8eaed';
-  // Clamp to ±5% for color scaling
-  const clamped = Math.max(-5, Math.min(5, changePercent));
-  const ratio = clamped / 5; // -1 to 1
-  if (ratio >= 0) {
-    // soft green: from #e8eaed (neutral) toward #ceead6 (green tint)
-    const r = Math.round(232 - ratio * 60);
-    const g = Math.round(234 - ratio * 4);
-    const b = Math.round(237 - ratio * 70);
-    return `rgb(${r}, ${g}, ${b})`;
-  }
-  // soft red: from #e8eaed (neutral) toward #f5c6c6 (red tint)
-  const absR = Math.abs(ratio);
-  const r = Math.round(232 + absR * 13);
-  const g = Math.round(234 - absR * 46);
-  const b = Math.round(237 - absR * 49);
-  return `rgb(${r}, ${g}, ${b})`;
-}
-
-function getIntrinsicColor(pBook: number | null, price: number | null, bookValue: number | null): string {
-  if (pBook === null || price === null || bookValue === null) return '#e8eaed';
-  const low = 0.5;
-  const high = 2.0;
-  const clamped = Math.max(low, Math.min(high, pBook));
-  const ratio = (clamped - low) / (high - low); // 0 (green/undervalued) to 1 (red/overvalued)
-
-  // Soft green (#ceead6) to soft red (#f5c6c6)
-  const r = Math.round(206 + ratio * 39);
-  const g = Math.round(234 - ratio * 36);
-  const b = Math.round(214 - ratio * 16);
-  return `rgb(${r}, ${g}, ${b})`;
 }
 
 function formatLabel(mode: HeatmapMode, row: StockRowData): string {

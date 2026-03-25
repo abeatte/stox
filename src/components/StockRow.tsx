@@ -7,7 +7,7 @@ import { formatValue, formatCurrency } from '../utils/formatters';
 /**
  * Returns a CSS highlight class for specific cells based on value thresholds.
  */
-function getCellHighlight(key: ColumnKey, value: unknown): string | undefined {
+export function getCellHighlight(key: ColumnKey, value: unknown): string | undefined {
   if (key === 'dividendPercent' || key === 'divYield') {
     if (value === null || value === undefined || value === 0) return 'gs-cell-yellow';
   }
@@ -52,6 +52,44 @@ export interface StockRowProps {
 
 const NUMERIC_TYPES = new Set(['currency', 'percent', 'ratio', 'large-number']);
 
+/** Reusable star + remove action cells rendered at the end of every row. */
+function RowActions({
+  ticker,
+  isStarred,
+  onToggleStar,
+  onRemove,
+}: {
+  ticker: string;
+  isStarred: boolean;
+  onToggleStar: (ticker: string) => void;
+  onRemove: (ticker: string) => void;
+}) {
+  return (
+    <>
+      <td>
+        <button
+          onClick={() => onToggleStar(ticker)}
+          aria-label={isStarred ? `Unstar ${ticker}` : `Star ${ticker}`}
+          type="button"
+          className="gs-star-btn"
+        >
+          {isStarred ? '★' : '☆'}
+        </button>
+      </td>
+      <td>
+        <button
+          onClick={() => onRemove(ticker)}
+          aria-label={`Remove ${ticker}`}
+          type="button"
+          className="gs-remove-btn"
+        >
+          ✕
+        </button>
+      </td>
+    </>
+  );
+}
+
 /**
  * Renders a single stock row in the ticker table.
  * Shows loading/error states when appropriate, otherwise renders
@@ -94,65 +132,27 @@ export function StockRow({
   }, []);
 
   const totalColumns = COLUMNS.length + 1; // +1 for the remove button column
+  const actions = (
+    <RowActions
+      ticker={ticker}
+      isStarred={isStarred}
+      onToggleStar={onToggleStar}
+      onRemove={onRemove}
+    />
+  );
 
-  if (isLoading && !data) {
+  // Loading / error placeholder rows share the same shell
+  if ((isLoading || isError) && !data) {
     return (
       <tr>
         <td>{ticker}</td>
-        <td colSpan={totalColumns - 2} className="gs-cell-loading">
-          Loading…
+        <td
+          colSpan={totalColumns - 2}
+          className={isLoading ? 'gs-cell-loading' : 'gs-cell-error'}
+        >
+          {isLoading ? 'Loading…' : 'Error loading data'}
         </td>
-        <td>
-          <button
-            onClick={() => onToggleStar(ticker)}
-            aria-label={isStarred ? `Unstar ${ticker}` : `Star ${ticker}`}
-            type="button"
-            className="gs-star-btn"
-          >
-            {isStarred ? '★' : '☆'}
-          </button>
-        </td>
-        <td>
-          <button
-            onClick={() => onRemove(ticker)}
-            aria-label={`Remove ${ticker}`}
-            type="button"
-            className="gs-remove-btn"
-          >
-            ✕
-          </button>
-        </td>
-      </tr>
-    );
-  }
-
-  if (isError && !data) {
-    return (
-      <tr>
-        <td>{ticker}</td>
-        <td colSpan={totalColumns - 2} className="gs-cell-error">
-          Error loading data
-        </td>
-        <td>
-          <button
-            onClick={() => onToggleStar(ticker)}
-            aria-label={isStarred ? `Unstar ${ticker}` : `Star ${ticker}`}
-            type="button"
-            className="gs-star-btn"
-          >
-            {isStarred ? '★' : '☆'}
-          </button>
-        </td>
-        <td>
-          <button
-            onClick={() => onRemove(ticker)}
-            aria-label={`Remove ${ticker}`}
-            type="button"
-            className="gs-remove-btn"
-          >
-            ✕
-          </button>
-        </td>
+        {actions}
       </tr>
     );
   }
@@ -249,26 +249,7 @@ export function StockRow({
           </td>
         );
       })}
-      <td>
-        <button
-          onClick={() => onToggleStar(ticker)}
-          aria-label={isStarred ? `Unstar ${ticker}` : `Star ${ticker}`}
-          type="button"
-          className="gs-star-btn"
-        >
-          {isStarred ? '★' : '☆'}
-        </button>
-      </td>
-      <td>
-        <button
-          onClick={() => onRemove(ticker)}
-          aria-label={`Remove ${ticker}`}
-          type="button"
-          className="gs-remove-btn"
-        >
-          ✕
-        </button>
-      </td>
+      {actions}
     </tr>
   );
 }

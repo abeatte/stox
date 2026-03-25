@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { AddTickerForm } from './AddTickerForm';
 
 interface EmptyStateProps {
   onAddTicker: (symbol: string) => string | null;
@@ -10,41 +10,14 @@ interface EmptyStateProps {
  * Includes an add-ticker form so users can get started.
  */
 export function EmptyState({ onAddTicker, onHelpOpen }: EmptyStateProps) {
-  const [input, setInput] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const result = onAddTicker(input);
-    if (result) {
-      setError(result);
-    } else {
-      setError(null);
-      setInput('');
-    }
-  };
-
   return (
     <div role="status" aria-label="Empty state" className="gs-empty">
       <p>No tickers configured. Add a ticker to get started.</p>
-      <form onSubmit={handleSubmit} aria-label="Add ticker">
-        <input
-          type="text"
-          placeholder="Ticker symbol"
-          aria-label="Ticker symbol"
-          value={input}
-          onChange={(e) => {
-            setInput(e.target.value);
-            if (error) setError(null);
-          }}
-        />
-        <button type="submit">Add</button>
-        {error && (
-          <span role="alert" style={{ color: 'red', marginLeft: 8 }}>
-            {error}
-          </span>
-        )}
-      </form>
+      <AddTickerForm
+        onAddTicker={onAddTicker}
+        placeholder="Ticker symbol"
+        inputLabel="Ticker symbol"
+      />
       <button
         type="button"
         className="gs-help-btn"

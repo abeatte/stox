@@ -12,6 +12,35 @@ export interface TableHeaderProps {
 }
 
 /**
+ * Renders the sort indicator (arrow + optional priority number) for a column.
+ * Returns null if the column is not actively sorted.
+ */
+function SortIndicator({
+  sortCriteria,
+  column,
+}: {
+  sortCriteria: SortCriterion[];
+  column: SortKey;
+}) {
+  const idx = sortCriteria.findIndex((c) => c.column === column);
+  if (idx === -1) return null;
+  const multiSort = sortCriteria.length > 1;
+  return (
+    <span aria-hidden="true" className="gs-sort-arrow">
+      {sortCriteria[idx].direction === 'asc' ? '▲' : '▼'}
+      {multiSort && <sup className="gs-sort-priority">{idx + 1}</sup>}
+    </span>
+  );
+}
+
+/** Resolve aria-sort value for a column, or undefined if not sorted. */
+function getAriaSort(sortCriteria: SortCriterion[], column: SortKey): 'ascending' | 'descending' | undefined {
+  const criterion = sortCriteria.find((c) => c.column === column);
+  if (!criterion) return undefined;
+  return criterion.direction === 'asc' ? 'ascending' : 'descending';
+}
+
+/**
  * Renders a <colgroup> for column widths, then the header row.
  * Each header cell has a draggable resize handle on its right edge.
  * Supports multi-column sort: shows arrow + priority number when multiple sorts are active.
@@ -29,8 +58,6 @@ export function TableHeader({
     onSort(key, e.shiftKey);
   };
 
-  const multiSort = sortCriteria.length > 1;
-
   return (
     <>
       <colgroup>
@@ -42,68 +69,37 @@ export function TableHeader({
       </colgroup>
       <thead>
         <tr>
-          {COLUMNS.map((col) => {
-            const sortIdx = sortCriteria.findIndex((c) => c.column === col.key);
-            const isActive = sortIdx !== -1;
-            const direction = isActive ? sortCriteria[sortIdx].direction : undefined;
-            return (
-              <th
-                key={col.key}
-                onClick={(e) => handleHeaderClick(col.key, e)}
-                aria-sort={
-                  isActive
-                    ? direction === 'asc'
-                      ? 'ascending'
-                      : 'descending'
-                    : undefined
-                }
-              >
-                <span className="gs-th-content">
-                  {isActive && (
-                    <span aria-hidden="true" className="gs-sort-arrow">
-                      {direction === 'asc' ? '▲' : '▼'}
-                      {multiSort && <sup className="gs-sort-priority">{sortIdx + 1}</sup>}
-                    </span>
-                  )}
-                  {col.label}
-                </span>
-                <span
-                  className="gs-resize-handle"
-                  onMouseDown={(e) => onResizeStart(col.key, e)}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    onAutoFit(col.key);
-                  }}
-                  role="separator"
-                  aria-orientation="vertical"
-                />
-              </th>
-            );
-          })}
+          {COLUMNS.map((col) => (
+            <th
+              key={col.key}
+              onClick={(e) => handleHeaderClick(col.key, e)}
+              aria-sort={getAriaSort(sortCriteria, col.key)}
+            >
+              <span className="gs-th-content">
+                <SortIndicator sortCriteria={sortCriteria} column={col.key} />
+                {col.label}
+              </span>
+              <span
+                className="gs-resize-handle"
+                onMouseDown={(e) => onResizeStart(col.key, e)}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  onAutoFit(col.key);
+                }}
+                role="separator"
+                aria-orientation="vertical"
+              />
+            </th>
+          ))}
           {/* Star column header */}
           <th
             style={{ width: 36, cursor: 'pointer', paddingLeft: 13 }}
             aria-label="Star"
             onClick={(e) => handleHeaderClick('star', e)}
-            aria-sort={
-              (() => {
-                const idx = sortCriteria.findIndex((c) => c.column === 'star');
-                if (idx === -1) return undefined;
-                return sortCriteria[idx].direction === 'asc' ? 'ascending' : 'descending';
-              })()
-            }
+            aria-sort={getAriaSort(sortCriteria, 'star')}
           >
             <span className="gs-th-content">
-              {(() => {
-                const idx = sortCriteria.findIndex((c) => c.column === 'star');
-                if (idx === -1) return null;
-                return (
-                  <span aria-hidden="true" className="gs-sort-arrow">
-                    {sortCriteria[idx].direction === 'asc' ? '▲' : '▼'}
-                    {multiSort && <sup className="gs-sort-priority">{idx + 1}</sup>}
-                  </span>
-                );
-              })()}
+              <SortIndicator sortCriteria={sortCriteria} column="star" />
               ★
             </span>
           </th>

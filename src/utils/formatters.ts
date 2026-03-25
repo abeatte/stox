@@ -6,6 +6,7 @@
  * - percent:       X.XX%
  * - ratio:         X.XX or (X.XX) for negatives
  * - large-number:  Abbreviated K/M/B/T with $ prefix
+ * - large-count:   Abbreviated K/M/B/T without $ prefix
  * - null/undefined → "N/A"
  */
 
@@ -14,16 +15,16 @@
  */
 export function formatCurrency(value: number): string {
   if (value < 0) {
-    return `($${Math.abs(value).toFixed(2)})`;
+    return '($' + Math.abs(value).toFixed(2) + ')';
   }
-  return `$${value.toFixed(2)}`;
+  return '$' + value.toFixed(2);
 }
 
 /**
  * Format a number as a percentage: X.XX%
  */
 export function formatPercent(value: number): string {
-  return `${value.toFixed(2)}%`;
+  return value.toFixed(2) + '%';
 }
 
 /**
@@ -31,9 +32,31 @@ export function formatPercent(value: number): string {
  */
 export function formatRatio(value: number): string {
   if (value < 0) {
-    return `(${Math.abs(value).toFixed(2)})`;
+    return '(' + Math.abs(value).toFixed(2) + ')';
   }
   return value.toFixed(2);
+}
+
+/** Abbreviation thresholds in descending order. */
+const ABBREVIATIONS: [number, string][] = [
+  [1e12, 'T'],
+  [1e9, 'B'],
+  [1e6, 'M'],
+  [1e3, 'K'],
+];
+
+/**
+ * Core abbreviation logic shared by formatLargeNumber and formatLargeCount.
+ * Abbreviates values >= 1000 with K/M/B/T suffix.
+ */
+function abbreviate(value: number, prefix: string): string {
+  const abs = Math.abs(value);
+  for (const [threshold, suffix] of ABBREVIATIONS) {
+    if (abs >= threshold) {
+      return prefix + (value / threshold).toFixed(1) + suffix;
+    }
+  }
+  return String(value);
 }
 
 /**
@@ -41,22 +64,7 @@ export function formatRatio(value: number): string {
  * Values below 1000 are displayed without abbreviation.
  */
 export function formatLargeNumber(value: number): string {
-  const abs = Math.abs(value);
-
-  if (abs >= 1e12) {
-    return `$${(value / 1e12).toFixed(1)}T`;
-  }
-  if (abs >= 1e9) {
-    return `$${(value / 1e9).toFixed(1)}B`;
-  }
-  if (abs >= 1e6) {
-    return `$${(value / 1e6).toFixed(1)}M`;
-  }
-  if (abs >= 1e3) {
-    return `$${(value / 1e3).toFixed(1)}K`;
-  }
-
-  return `${value}`;
+  return abbreviate(value, '$');
 }
 
 /**
@@ -64,23 +72,20 @@ export function formatLargeNumber(value: number): string {
  * Used for non-monetary counts like shares outstanding.
  */
 export function formatLargeCount(value: number): string {
-  const abs = Math.abs(value);
-
-  if (abs >= 1e12) {
-    return `${(value / 1e12).toFixed(1)}T`;
-  }
-  if (abs >= 1e9) {
-    return `${(value / 1e9).toFixed(1)}B`;
-  }
-  if (abs >= 1e6) {
-    return `${(value / 1e6).toFixed(1)}M`;
-  }
-  if (abs >= 1e3) {
-    return `${(value / 1e3).toFixed(1)}K`;
-  }
-
-  return `${value}`;
+  return abbreviate(value, '');
 }
+
+/** All supported format types. */
+export type FormatType = 'text' | 'currency' | 'percent' | 'ratio' | 'large-number' | 'large-count';
+
+/** Map from format type to its formatter function. */
+const FORMATTERS: Record<Exclude<FormatType, 'text'>, (v: number) => string> = {
+  currency: formatCurrency,
+  percent: formatPercent,
+  ratio: formatRatio,
+  'large-number': formatLargeNumber,
+  'large-count': formatLargeCount,
+};
 
 /**
  * Dispatcher that formats a value based on its column type.
@@ -88,7 +93,7 @@ export function formatLargeCount(value: number): string {
  */
 export function formatValue(
   value: number | string | null | undefined,
-  type: 'text' | 'currency' | 'percent' | 'ratio' | 'large-number' | 'large-count',
+  type: FormatType,
 ): string {
   if (value === null || value === undefined) {
     return 'N/A';
@@ -102,18 +107,6 @@ export function formatValue(
     return String(value);
   }
 
-  switch (type) {
-    case 'currency':
-      return formatCurrency(value);
-    case 'percent':
-      return formatPercent(value);
-    case 'ratio':
-      return formatRatio(value);
-    case 'large-number':
-      return formatLargeNumber(value);
-    case 'large-count':
-      return formatLargeCount(value);
-    default:
-      return String(value);
-  }
+  const formatter = FORMATTERS[type];
+  return formatter ? formatter(value) : String(value);
 }

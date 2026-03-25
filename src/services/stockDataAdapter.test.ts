@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { YahooFinanceAdapter } from './stockDataAdapter';
+import { YahooFinanceAdapter, toNum, normalizeStockData } from './stockDataAdapter';
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -173,5 +173,62 @@ describe('YahooFinanceAdapter', () => {
 
       await expect(adapter.refreshStocks(['AAPL'])).rejects.toThrow('Server error');
     });
+  });
+});
+
+describe('toNum', () => {
+  it('returns null for null', () => {
+    expect(toNum(null)).toBeNull();
+  });
+
+  it('returns null for undefined', () => {
+    expect(toNum(undefined)).toBeNull();
+  });
+
+  it('returns null for non-finite values', () => {
+    expect(toNum('N/A')).toBeNull();
+    expect(toNum(Infinity)).toBeNull();
+    expect(toNum(NaN)).toBeNull();
+  });
+
+  it('converts numeric strings', () => {
+    expect(toNum('42.5')).toBe(42.5);
+  });
+
+  it('passes through numbers', () => {
+    expect(toNum(185.5)).toBe(185.5);
+    expect(toNum(0)).toBe(0);
+  });
+});
+
+describe('normalizeStockData', () => {
+  it('normalizes a complete API response', () => {
+    const raw = {
+      ticker: 'AAPL',
+      price: 185.5,
+      eps: 6.42,
+      relatedTickers: ['MSFT'],
+    };
+    const result = normalizeStockData(raw);
+    expect(result.ticker).toBe('AAPL');
+    expect(result.price).toBe(185.5);
+    expect(result.eps).toBe(6.42);
+    expect(result.relatedTickers).toEqual(['MSFT']);
+  });
+
+  it('uses fallbackTicker when ticker is missing', () => {
+    const result = normalizeStockData({}, 'FALLBACK');
+    expect(result.ticker).toBe('FALLBACK');
+  });
+
+  it('defaults relatedTickers to empty array when not an array', () => {
+    const result = normalizeStockData({ relatedTickers: 'not-array' });
+    expect(result.relatedTickers).toEqual([]);
+  });
+
+  it('converts non-numeric fields to null', () => {
+    const result = normalizeStockData({ price: 'N/A', eps: undefined });
+    expect(result.price).toBeNull();
+    expect(result.eps).toBeNull();
   });
 });

@@ -2,8 +2,7 @@ const TICKER_KEY = 'stox:tickers';
 const STARRED_KEY = 'stox:starred';
 
 // In-memory fallback when localStorage is unavailable
-let memoryTickerList: string[] = [];
-let memoryStarredSet: string[] = [];
+const memoryStore = new Map<string, string[]>();
 
 function isLocalStorageAvailable(): boolean {
   try {
@@ -18,12 +17,16 @@ function isLocalStorageAvailable(): boolean {
 
 const storageAvailable = isLocalStorageAvailable();
 
-export function getTickerList(): string[] {
+/**
+ * Generic getter for a JSON string-array stored under `key`.
+ * Falls back to in-memory store when localStorage is unavailable.
+ */
+function getList(key: string): string[] {
   if (!storageAvailable) {
-    return [...memoryTickerList];
+    return [...(memoryStore.get(key) ?? [])];
   }
   try {
-    const raw = localStorage.getItem(TICKER_KEY);
+    const raw = localStorage.getItem(key);
     if (raw === null) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -31,43 +34,36 @@ export function getTickerList(): string[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * Generic setter for a JSON string-array stored under `key`.
+ * Falls back to in-memory store when localStorage is unavailable.
+ */
+function setList(key: string, items: string[]): void {
+  if (!storageAvailable) {
+    memoryStore.set(key, [...items]);
+    return;
+  }
+  try {
+    localStorage.setItem(key, JSON.stringify(items));
+  } catch {
+    memoryStore.set(key, [...items]);
+  }
+}
+
+export function getTickerList(): string[] {
+  return getList(TICKER_KEY);
 }
 
 export function setTickerList(tickers: string[]): void {
-  if (!storageAvailable) {
-    memoryTickerList = [...tickers];
-    return;
-  }
-  try {
-    localStorage.setItem(TICKER_KEY, JSON.stringify(tickers));
-  } catch {
-    memoryTickerList = [...tickers];
-  }
+  setList(TICKER_KEY, tickers);
 }
 
 export function getStarredTickers(): string[] {
-  if (!storageAvailable) {
-    return [...memoryStarredSet];
-  }
-  try {
-    const raw = localStorage.getItem(STARRED_KEY);
-    if (raw === null) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed;
-  } catch {
-    return [];
-  }
+  return getList(STARRED_KEY);
 }
 
 export function setStarredTickers(starred: string[]): void {
-  if (!storageAvailable) {
-    memoryStarredSet = [...starred];
-    return;
-  }
-  try {
-    localStorage.setItem(STARRED_KEY, JSON.stringify(starred));
-  } catch {
-    memoryStarredSet = [...starred];
-  }
+  setList(STARRED_KEY, starred);
 }

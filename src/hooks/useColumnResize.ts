@@ -2,15 +2,15 @@ import { useState, useCallback, useRef } from 'react';
 import { COLUMNS } from '../columns';
 import type { ColumnKey } from '../types';
 
-/** Width reserved for the remove-button column (px). */
-const REMOVE_COL_WIDTH = 36;
+/** Width reserved for the fixed-width columns: star (36px) + remove button (36px). */
+const FIXED_COL_WIDTH = 36 + 36;
 
 const MIN_WIDTH = 40;
 /** Extra padding to account for cell padding (10px each side) */
 const AUTOFIT_PAD = 22;
 
 function buildInitialWidths(): Record<ColumnKey, number> {
-  const available = (typeof window !== 'undefined' ? window.innerWidth : 1200) - REMOVE_COL_WIDTH;
+  const available = (typeof window !== 'undefined' ? window.innerWidth : 1200) - FIXED_COL_WIDTH;
   const perCol = Math.max(MIN_WIDTH, Math.floor(available / COLUMNS.length));
   const map = {} as Record<ColumnKey, number>;
   for (const col of COLUMNS) {

@@ -209,7 +209,7 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
   }, [tickers, queryClient]);
 
   return (
-    <div>
+    <div className="gs-ticker-table">
       <ToolBar
         searchQuery={searchQuery}
         onSearchChange={onSearchChange}

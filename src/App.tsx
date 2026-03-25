@@ -14,7 +14,7 @@ function AppContent() {
   const openHelp = () => setHelpOpen(true);
 
   return (
-    <>
+    <div className="gs-layout">
       <main className="gs-app">
         {tickers.length > 0 ? (
           <TickerTable onHelpOpen={openHelp} />
@@ -24,7 +24,7 @@ function AppContent() {
       </main>
       <Footer/>
       <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
-    </>
+    </div>
   );
 }
 

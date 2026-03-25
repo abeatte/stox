@@ -28,6 +28,9 @@ body {
 
 /* ── Toolbar (formula-bar style) ── */
 .gs-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -129,9 +132,17 @@ body {
 }
 
 /* ── Table wrapper ── */
+.gs-ticker-table {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .gs-table-wrap {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
-  max-height: calc(100vh - 50px);
   background: #fff;
   border: 1px solid #dadce0;
   border-top: none;
@@ -436,10 +447,21 @@ body {
   font-size: 12px;
 }
 
+/* ── Layout shell ── */
+.gs-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
 /* ── App container ── */
 .gs-app {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   max-width: 100%;
-  height: 100vh;
   margin: 0;
   padding: 0;
 }
@@ -487,6 +509,7 @@ body {
 
 /* ── Sticky footer ── */
 .gs-footer {
+  flex-shrink: 0;
   position: sticky;
   bottom: 0;
   display: flex;
@@ -498,7 +521,7 @@ body {
   border-top: 1px solid #dadce0;
   font-size: 12px;
   color: #5f6368;
-  z-index: 4;
+  z-index: 10;
 }
 
 .gs-footer a {

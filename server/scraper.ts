@@ -2,7 +2,7 @@
  * Yahoo Finance scraper — Puppeteer.
  * All page fetches use a shared headless Chrome instance.
  */
-import puppeteer from 'puppeteer';
+import puppeteer, { type Browser, type Page, type HTTPResponse } from 'puppeteer';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,19 +10,82 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CACHE_FILE = resolve(__dirname, '.stock-cache.json');
 
-// Cache: ticker -> { data, timestamp }
-const cache = new Map();
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface CacheEntry {
+  data: TickerResult;
+  timestamp: number;
+}
+
+interface TickerResult {
+  ticker: string;
+  price: number | null;
+  changePercent: number | null;
+  date: string;
+  sector: string | null;
+  industry: string | null;
+  divYield: number | null;
+  eps: number | null;
+  totalAssets: number | null;
+  goodwillNet: number | null;
+  intangiblesNet: number | null;
+  liabilitiesTotal: number | null;
+  sharesOutstanding: number | null;
+  dividendPercent: number | null;
+  bookValue: number | null;
+  priceToBook: number | null;
+  relatedTickers: string[];
+  error?: string;
+}
+
+interface BalanceSheetData {
+  totalAssets: string | null;
+  goodwillNet: string | null;
+  intangiblesNet: string | null;
+  liabilitiesTotal: string | null;
+  sharesOutstanding: string | null;
+  relatedTickers: string[];
+}
+
+interface ProfileData {
+  sector: string | null;
+  industry: string | null;
+}
+
+interface RealtimePriceData {
+  price: number | null;
+  prevClose: number | null;
+  changePercent: number | null;
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+interface QuoteSummaryResult {
+  financialData?: Record<string, any>;
+  summaryDetail?: Record<string, any>;
+  defaultKeyStatistics?: Record<string, any>;
+  assetProfile?: Record<string, any>;
+  price?: Record<string, any>;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+// ---------------------------------------------------------------------------
+// Cache
+// ---------------------------------------------------------------------------
+
+const cache = new Map<string, CacheEntry>();
 const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
 
-function loadCache() {
+function loadCache(): void {
   try {
     const raw = readFileSync(CACHE_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
     let loaded = 0;
-    
-    const entries = Array.isArray(parsed)
+
+    const entries: [string, CacheEntry][] = Array.isArray(parsed)
       ? parsed
-      : Object.entries(parsed).map(([key, value]) => [key, value]);
+      : Object.entries(parsed) as [string, CacheEntry][];
 
     for (const [key, value] of entries) {
       if (Date.now() - value.timestamp < CACHE_TTL) {
@@ -36,25 +99,28 @@ function loadCache() {
   }
 }
 
-export function saveCache() {
+export function saveCache(): void {
   try {
     const obj = Object.fromEntries(cache.entries());
     writeFileSync(CACHE_FILE, JSON.stringify(obj, null, 2) + '\n');
   } catch (err) {
-    console.warn('[scraper] Failed to save cache:', err.message);
+    console.warn('[scraper] Failed to save cache:', (err as Error).message);
   }
 }
 
 loadCache();
 
-// Throttle between requests
+// ---------------------------------------------------------------------------
+// Throttle
+// ---------------------------------------------------------------------------
+
 let lastRequest = 0;
 const REQUEST_GAP = 2000;
 
-async function throttle() {
+async function throttle(): Promise<void> {
   const now = Date.now();
   const wait = REQUEST_GAP - (now - lastRequest);
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  if (wait > 0) await new Promise<void>((r) => setTimeout(r, wait));
   lastRequest = Date.now();
 }
 
@@ -63,14 +129,15 @@ const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (
 // ---------------------------------------------------------------------------
 // Shared browser instance
 // ---------------------------------------------------------------------------
-let browserPromise = null;
 
-function getBrowser() {
+let browserPromise: Promise<Browser> | null = null;
+
+function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
     browserPromise = puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    }).catch((err) => {
+    }).catch((err: Error) => {
       browserPromise = null;
       throw new Error(`Failed to launch Chrome: ${err.message}`);
     });
@@ -78,7 +145,7 @@ function getBrowser() {
   return browserPromise;
 }
 
-export async function closeBrowser() {
+export async function closeBrowser(): Promise<void> {
   if (browserPromise) {
     const browser = await browserPromise;
     await browser.close();
@@ -86,30 +153,38 @@ export async function closeBrowser() {
   }
 }
 
-export async function warmUp() {
+export async function warmUp(): Promise<void> {
   try {
     await getBrowser();
     console.log('[scraper] Chrome browser ready');
   } catch (err) {
-    console.warn('[scraper] Chrome not available:', err.message);
+    console.warn('[scraper] Chrome not available:', (err as Error).message);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Page helpers
+// ---------------------------------------------------------------------------
+
+interface PageHandle {
+  page: Page;
+  cleanup: () => Promise<void>;
 }
 
 /**
  * Open a new Puppeteer page with standard UA/viewport and abort-signal wiring.
- * Returns { page, cleanup } — always call cleanup() when done (or use in a finally block).
  */
-async function openPage(signal) {
+async function openPage(signal?: AbortSignal): Promise<PageHandle> {
   const browser = await getBrowser();
   const page = await browser.newPage();
   await page.setUserAgent(UA);
   await page.setViewport({ width: 1280, height: 800 });
 
-  const onAbort = () => { page.close().catch(() => {}); };
+  const onAbort = (): void => { page.close().catch(() => {}); };
   if (signal?.aborted) { await page.close(); throw new Error('Aborted'); }
   signal?.addEventListener('abort', onAbort, { once: true });
 
-  const cleanup = async () => {
+  const cleanup = async (): Promise<void> => {
     signal?.removeEventListener('abort', onAbort);
     await page.close().catch(() => {});
   };
@@ -121,30 +196,29 @@ async function openPage(signal) {
 // Quote page — Puppeteer
 // ---------------------------------------------------------------------------
 
-function parseQuoteSummaryHtml(ticker, html) {
+function parseQuoteSummaryHtml(ticker: string, html: string): QuoteSummaryResult {
   const regex = /<script[^>]*data-url="[^"]*quoteSummary[^"]*"[^>]*>([\s\S]*?)<\/script>/;
   const match = html.match(regex);
   if (!match) throw new Error(`Could not find quoteSummary data for ${ticker}`);
 
   const wrapper = JSON.parse(match[1]);
   const body = JSON.parse(wrapper.body);
-  const result = body?.quoteSummary?.result?.[0];
+  const result = body?.quoteSummary?.result?.[0] as QuoteSummaryResult | undefined;
   if (!result) throw new Error(`No quoteSummary result for ${ticker}`);
   return result;
 }
 
-async function fetchQuoteSummary(ticker, signal) {
+async function fetchQuoteSummary(ticker: string, signal?: AbortSignal): Promise<QuoteSummaryResult> {
   const { page, cleanup } = await openPage(signal);
 
-  // Intercept the quoteSummary XHR that Yahoo's client-side JS fires
-  let summaryResolve;
-  const summaryPromise = new Promise((res) => { summaryResolve = res; });
+  let summaryResolve: (value: QuoteSummaryResult) => void;
+  const summaryPromise = new Promise<QuoteSummaryResult>((res) => { summaryResolve = res; });
 
-  page.on('response', async (resp) => {
+  page.on('response', async (resp: HTTPResponse) => {
     try {
       if (resp.url().includes('quoteSummary')) {
         const json = await resp.json();
-        const result = json?.quoteSummary?.result?.[0];
+        const result = json?.quoteSummary?.result?.[0] as QuoteSummaryResult | undefined;
         if (result) summaryResolve(result);
       }
     } catch { /* ignore non-JSON responses */ }
@@ -156,16 +230,14 @@ async function fetchQuoteSummary(ticker, signal) {
       waitUntil: 'domcontentloaded', timeout: 30000,
     });
 
-    // Try embedded JSON first (fastest path)
     const html = await page.content();
     try {
       return parseQuoteSummaryHtml(ticker, html);
     } catch { /* not embedded — wait for XHR */ }
 
-    // Wait up to 15s for the XHR
     return await Promise.race([
       summaryPromise,
-      new Promise((_, rej) => setTimeout(() => rej(new Error(
+      new Promise<QuoteSummaryResult>((_resolve, reject) => setTimeout(() => reject(new Error(
         `Timed out waiting for quoteSummary XHR for ${ticker}`
       )), 15000)),
     ]);
@@ -178,8 +250,8 @@ async function fetchQuoteSummary(ticker, signal) {
 // Profile page — sector/industry
 // ---------------------------------------------------------------------------
 
-async function fetchProfile(ticker, signal) {
-  let page, cleanup;
+async function fetchProfile(ticker: string, signal?: AbortSignal): Promise<ProfileData | null> {
+  let page: Page, cleanup: () => Promise<void>;
   try {
     ({ page, cleanup } = await openPage(signal));
   } catch {
@@ -192,22 +264,20 @@ async function fetchProfile(ticker, signal) {
       waitUntil: 'domcontentloaded', timeout: 30000,
     });
 
-    // Try embedded JSON
     const html = await page.content();
     try {
       const result = parseQuoteSummaryHtml(ticker, html);
       const ap = result?.assetProfile;
-      if (ap) return ap;
+      if (ap) return { sector: ap.sector ?? null, industry: ap.industry ?? null };
     } catch { /* not in HTML */ }
 
-    // Fallback: scrape visible text
     const profileData = await page.evaluate(() => {
-      const getText = (label) => {
+      const getText = (label: string): string | null => {
         const spans = [...document.querySelectorAll('span, dt, th')];
         for (const el of spans) {
-          if (el.textContent.trim() === label) {
+          if (el.textContent?.trim() === label) {
             const next = el.nextElementSibling;
-            if (next) return next.textContent.trim();
+            if (next) return next.textContent?.trim() ?? null;
           }
         }
         return null;
@@ -218,7 +288,7 @@ async function fetchProfile(ticker, signal) {
     if (profileData.sector || profileData.industry) return profileData;
     return null;
   } catch (err) {
-    console.warn(`[${ticker}] Profile fetch failed:`, err.message);
+    console.warn(`[${ticker}] Profile fetch failed:`, (err as Error).message);
     return null;
   } finally {
     await cleanup();
@@ -229,8 +299,8 @@ async function fetchProfile(ticker, signal) {
 // Balance sheet page
 // ---------------------------------------------------------------------------
 
-async function scrapeBalanceSheet(ticker, signal) {
-  let page, cleanup;
+async function scrapeBalanceSheet(ticker: string, signal?: AbortSignal): Promise<BalanceSheetData | null> {
+  let page: Page, cleanup: () => Promise<void>;
   try {
     ({ page, cleanup } = await openPage(signal));
   } catch {
@@ -242,38 +312,36 @@ async function scrapeBalanceSheet(ticker, signal) {
     await page.goto(`https://finance.yahoo.com/quote/${ticker}/balance-sheet/`, {
       waitUntil: 'domcontentloaded', timeout: 30000,
     });
-    await new Promise((r) => setTimeout(r, 5000));
+    await new Promise<void>((r) => setTimeout(r, 5000));
 
-    // Click "Expand All" to reveal sub-rows like Goodwill
     try {
       const expandBtn = await page.evaluateHandle(() => {
         const buttons = [...document.querySelectorAll('button')];
-        return buttons.find((b) => b.textContent.trim() === 'Expand All');
+        return buttons.find((b) => b.textContent?.trim() === 'Expand All') ?? null;
       });
       if (expandBtn) {
-        await expandBtn.click();
-        await new Promise((r) => setTimeout(r, 3000));
+        await (expandBtn as unknown as { click: () => Promise<void> }).click();
+        await new Promise<void>((r) => setTimeout(r, 3000));
       }
     } catch { /* no expand button */ }
 
-    const data = await page.evaluate(() => {
-      const lines = document.body.innerText.split('\n').map((l) => l.trim());
-      const getValue = (label) => {
+    const data: BalanceSheetData = await page.evaluate(() => {
+      const lines = document.body.innerText.split('\n').map((l: string) => l.trim());
+      const getValue = (label: string): string | null => {
         for (let i = 0; i < lines.length; i++) {
           if (lines[i] === label && i + 1 < lines.length) return lines[i + 1];
         }
         return null;
       };
 
-      // Related tickers
-      const relatedTickers = [];
+      const relatedTickers: string[] = [];
       const sections = document.querySelectorAll('section');
       for (const section of sections) {
         const heading = section.querySelector('h2, h3');
-        if (heading && /related\s+tickers/i.test(heading.textContent)) {
-          const seen = new Set();
+        if (heading && /related\s+tickers/i.test(heading.textContent ?? '')) {
+          const seen = new Set<string>();
           for (const a of section.querySelectorAll('a[href*="/quote/"]')) {
-            const match = a.href.match(/\/quote\/([A-Z0-9.\-]+)/);
+            const match = a.getAttribute('href')?.match(/\/quote\/([A-Z0-9.\-]+)/);
             if (match && !seen.has(match[1])) {
               seen.add(match[1]);
               relatedTickers.push(match[1]);
@@ -294,7 +362,7 @@ async function scrapeBalanceSheet(ticker, signal) {
     });
     return data;
   } catch (err) {
-    console.warn(`[${ticker}] Balance sheet scrape failed:`, err.message);
+    console.warn(`[${ticker}] Balance sheet scrape failed:`, (err as Error).message);
     return null;
   } finally {
     await cleanup();
@@ -305,7 +373,7 @@ async function scrapeBalanceSheet(ticker, signal) {
 // Live price scrape
 // ---------------------------------------------------------------------------
 
-async function getRealtimePrice(ticker, signal) {
+async function getRealtimePrice(ticker: string, signal?: AbortSignal): Promise<RealtimePriceData> {
   const { page, cleanup } = await openPage(signal);
 
   try {
@@ -315,11 +383,11 @@ async function getRealtimePrice(ticker, signal) {
     });
 
     await page.waitForSelector('section[data-testid="price-statistic"]', { timeout: 10000 }).catch(() => {});
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise<void>((r) => setTimeout(r, 2000));
 
     const priceData = await page.evaluate(() => {
       const section = document.querySelector('section[data-testid="price-statistic"]');
-      if (!section) return { price: null, changePercent: null, prevClose: null };
+      if (!section) return { price: null as string | null, changePercent: null as number | null, prevClose: null as string | null };
 
       const priceEl = section.querySelector('[data-testid="qsp-price"]');
       const changePercentEl = section.querySelector('[data-testid="qsp-price-change-percent"]');
@@ -328,7 +396,7 @@ async function getRealtimePrice(ticker, signal) {
         || section.querySelector('.price')?.textContent?.trim()
         || null;
 
-      let changePercent = null;
+      let changePercent: number | null = null;
       const cpText = (changePercentEl || section.querySelector('.priceChangePercent'))?.textContent?.trim();
       if (cpText) {
         const cleaned = cpText.replace(/[()%]/g, '');
@@ -336,12 +404,12 @@ async function getRealtimePrice(ticker, signal) {
         if (!isNaN(n)) changePercent = n;
       }
 
-      const findValue = (label) => {
+      const findValue = (label: string): string | null => {
         for (const li of document.querySelectorAll('li')) {
           const span = li.querySelector('span');
-          if (span && span.textContent.trim() === label) {
+          if (span && span.textContent?.trim() === label) {
             const val = li.querySelector('fin-streamer, span:last-child');
-            if (val && val !== span) return val.textContent.trim();
+            if (val && val !== span) return val.textContent?.trim() ?? null;
           }
         }
         return null;
@@ -359,7 +427,7 @@ async function getRealtimePrice(ticker, signal) {
       throw new Error(`Could not extract live price for ${ticker}`);
     }
 
-    return { price, prevClose: isNaN(prevClose) ? null : prevClose, changePercent };
+    return { price, prevClose: prevClose != null && !isNaN(prevClose) ? prevClose : null, changePercent };
   } finally {
     await cleanup();
   }
@@ -369,14 +437,17 @@ async function getRealtimePrice(ticker, signal) {
 // Number parsing
 // ---------------------------------------------------------------------------
 
-function rawVal(field) {
+function rawVal(field: unknown): number | null {
   if (field == null) return null;
   if (typeof field === 'number') return field;
-  if (typeof field === 'object' && field.raw != null) return field.raw;
+  if (typeof field === 'object' && field !== null && 'raw' in field) {
+    const raw = (field as { raw: unknown }).raw;
+    return typeof raw === 'number' ? raw : null;
+  }
   return null;
 }
 
-function parseNum(raw) {
+function parseNum(raw: string | null): number | null {
   if (!raw || raw === '--' || raw === 'N/A') return null;
   let str = raw.trim().replace(/[$,\s]/g, '');
   const neg = str.startsWith('(') && str.endsWith(')');
@@ -390,14 +461,14 @@ function parseNum(raw) {
 // Exports
 // ---------------------------------------------------------------------------
 
-export async function refreshStock(ticker, signal) {
+export async function refreshStock(ticker: string, signal?: AbortSignal): Promise<TickerResult> {
   const symbol = ticker.toUpperCase().trim();
   console.log(`[${symbol}] Refreshing stock...`);
   cache.delete(symbol);
   return fetchTickerData(symbol, signal);
 }
 
-export async function fetchTickerData(ticker, signal) {
+export async function fetchTickerData(ticker: string, signal?: AbortSignal): Promise<TickerResult> {
   const symbol = ticker.toUpperCase().trim();
 
   const cached = cache.get(symbol);
@@ -409,10 +480,10 @@ export async function fetchTickerData(ticker, signal) {
   // 1. Quote summary (EPS, dividend, book value, etc.)
   console.log(`[${symbol}] Stage 1/4: Fetching quote summary...`);
   const summary = await fetchQuoteSummary(symbol, signal);
-  const fd = summary.financialData || {};
-  const sd = summary.summaryDetail || {};
-  const ks = summary.defaultKeyStatistics || {};
-  const ap = summary.assetProfile || {};
+  const fd = summary.financialData ?? {};
+  const sd = summary.summaryDetail ?? {};
+  const ks = summary.defaultKeyStatistics ?? {};
+  const ap = summary.assetProfile ?? {};
 
   let price = rawVal(fd.currentPrice) ?? rawVal(summary.price?.regularMarketPrice);
   let prevClose = rawVal(summary.price?.regularMarketPreviousClose);
@@ -459,7 +530,7 @@ export async function fetchTickerData(ticker, signal) {
   const sector = profile?.sector || ap.sector || null;
   const industry = profile?.industry || ap.industry || null;
 
-  const result = {
+  const result: TickerResult = {
     ticker: symbol,
     price,
     changePercent,

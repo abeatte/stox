@@ -7,7 +7,7 @@ import type { RawStockData } from '../types';
  */
 export interface StockDataAdapter {
   fetchStock(ticker: string, signal?: AbortSignal): Promise<RawStockData>;
-  refreshPrices(tickers: string[], signal?: AbortSignal): Promise<{ ticker: string; price: number | null; changePercent: number | null }[]>;
+  refreshStocks(tickers: string[], signal?: AbortSignal): Promise<(RawStockData & { error?: string })[]>;
 }
 
 /**
@@ -47,8 +47,8 @@ export class YahooFinanceAdapter implements StockDataAdapter {
     };
   }
 
-  async refreshPrices(tickers: string[], signal?: AbortSignal): Promise<{ ticker: string; price: number | null; changePercent: number | null }[]> {
-    const response = await fetch('http://localhost:3001/api/refresh-prices', {
+  async refreshStocks(tickers: string[], signal?: AbortSignal): Promise<(RawStockData & { error?: string })[]> {
+    const response = await fetch('http://localhost:3001/api/refresh-stocks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tickers }),
@@ -59,11 +59,30 @@ export class YahooFinanceAdapter implements StockDataAdapter {
       throw new Error(body.error || `Refresh failed: ${response.status}`);
     }
     const { results } = await response.json();
-    return results.map((r: { ticker: string; price: unknown; changePercent: unknown }) => ({
-      ticker: r.ticker,
-      price: toNum(r.price),
-      changePercent: toNum(r.changePercent),
-    }));
+    return results.map((r: Record<string, unknown>) => {
+      if (r.error) {
+        return { ticker: r.ticker as string, error: r.error as string } as any;
+      }
+      return {
+        ticker: (r.ticker as string) ?? '',
+        price: toNum(r.price),
+        changePercent: toNum(r.changePercent),
+        date: (r.date as string) ?? null,
+        sector: (r.sector as string) ?? null,
+        industry: (r.industry as string) ?? null,
+        divYield: toNum(r.divYield),
+        eps: toNum(r.eps),
+        totalAssets: toNum(r.totalAssets),
+        goodwillNet: toNum(r.goodwillNet),
+        intangiblesNet: toNum(r.intangiblesNet),
+        liabilitiesTotal: toNum(r.liabilitiesTotal),
+        sharesOutstanding: toNum(r.sharesOutstanding),
+        dividendPercent: toNum(r.dividendPercent),
+        bookValue: toNum(r.bookValue),
+        priceToBook: toNum(r.priceToBook),
+        relatedTickers: Array.isArray(r.relatedTickers) ? r.relatedTickers : [],
+      };
+    });
   }
 }
 

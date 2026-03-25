@@ -1,17 +1,18 @@
 /**
  * Express proxy server for Yahoo Finance stock data.
- * Uses plain HTTP to fetch and parse Yahoo Finance pages — no Puppeteer needed.
+ * Uses Puppeteer via scraper.mjs to fetch and parse Yahoo Finance pages.
  *
  * Usage: node server/index.mjs
- * Endpoint: GET /api/stock/:ticker
+ * Endpoints:
+ *   GET  /api/stock/:ticker   — fetch (cached) stock data
+ *   POST /api/refresh-stocks  — force-refresh stock data (clears cache)
  */
 import express from 'express';
-import { fetchTickerData, refreshPrice, closeBrowser, warmUp, saveCache } from './scraper.mjs';
+import { fetchTickerData, refreshStock, closeBrowser, warmUp, saveCache } from './scraper.mjs';
 
 const app = express();
 const PORT = 3001;
 
-// Enable CORS so the browser can connect directly (bypassing Vite proxy)
 app.use((_req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -31,33 +32,24 @@ app.get('/api/stock/:ticker', async (req, res) => {
     return;
   }
 
-  try {
-    const abortController = new AbortController();
-    req.on('close', () => {
-      if (!res.writableEnded) {
-        console.log(`[server] Client disconnected, aborting ${ticker.toUpperCase()}`);
-        abortController.abort();
-      }
-    });
+  const abortController = new AbortController();
+  req.on('close', () => { if (!res.writableEnded) abortController.abort(); });
 
-    console.log(`[server] Fetching ${ticker.toUpperCase()}...`);
+  try {
     const data = await fetchTickerData(ticker, abortController.signal);
-    console.log(`[server] Done: ${ticker.toUpperCase()}`);
     res.json(data);
   } catch (err) {
-    if (err.name === 'AbortError') {
+    if (err.name === 'AbortError' || err.message === 'Aborted') {
       console.log(`[server] Fetch aborted for ${ticker.toUpperCase()}`);
       if (!res.headersSent) res.status(499).end();
       return;
     }
     console.error(`[server] Error for ${ticker}:`, err.message);
-    if (!res.headersSent) {
-      res.status(500).json({ error: err.message });
-    }
+    if (!res.headersSent) res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/refresh-prices', async (req, res) => {
+app.post('/api/refresh-stocks', async (req, res) => {
   const { tickers } = req.body;
   if (!Array.isArray(tickers) || tickers.length === 0) {
     res.status(400).json({ error: 'Provide a tickers array' });
@@ -65,64 +57,49 @@ app.post('/api/refresh-prices', async (req, res) => {
   }
 
   const abortController = new AbortController();
-  res.on('close', () => {
-    if (!res.writableFinished) {
-      console.log('[server] Client disconnected, aborting price refresh');
-      abortController.abort();
-    }
-  });
+  res.on('close', () => { if (!res.writableFinished) abortController.abort(); });
 
   try {
     const results = [];
     for (const ticker of tickers) {
       if (abortController.signal.aborted) {
-        console.log(`[server] Refresh aborted, skipping remaining tickers`);
+        console.log(`[server] Refresh aborted`);
         break;
       }
       try {
-        const result = await refreshPrice(ticker, abortController.signal);
+        const result = await refreshStock(ticker, abortController.signal);
         results.push(result);
       } catch (err) {
-        if (err.name === 'AbortError') throw err;
-        console.warn(`[server] Price refresh failed for ${ticker}:`, err.message);
+        if (err.name === 'AbortError' || err.message === 'Aborted') throw err;
+        console.warn(`[server] Refresh failed for ${ticker}:`, err.message);
         results.push({ ticker: ticker.toUpperCase(), price: null, changePercent: null, error: err.message });
       }
     }
     if (!res.headersSent) res.json({ results });
   } catch (err) {
-    if (err.name === 'AbortError') {
-      console.log('[server] Refresh prices aborted');
+    if (err.name === 'AbortError' || err.message === 'Aborted') {
+      console.log('[server] Refresh aborted');
       if (!res.headersSent) res.status(499).end();
       return;
     }
-    console.error('[server] Refresh prices error:', err.message);
-    if (!res.headersSent) {
-      res.status(500).json({ error: err.message });
-    }
+    console.error('[server] Refresh error:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: err.message });
   }
 });
 
-// Global error handler
 app.use((err, _req, res, _next) => {
   console.error('[server] Unhandled error:', err.message);
-  if (!res.headersSent) {
-    res.status(500).json({ error: err.message });
-  }
+  if (!res.headersSent) res.status(500).json({ error: err.message });
 });
 
-process.on('uncaughtException', (err) => {
-  console.error('[server] Uncaught exception:', err);
-});
-process.on('unhandledRejection', (reason) => {
-  console.error('[server] Unhandled rejection:', reason);
-});
+process.on('uncaughtException', (err) => console.error('[server] Uncaught exception:', err));
+process.on('unhandledRejection', (reason) => console.error('[server] Unhandled rejection:', reason));
 
 app.listen(PORT, () => {
   console.log(`[server] Yahoo Finance proxy running on http://localhost:${PORT}`);
   warmUp();
 });
 
-// Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\n[server] Shutting down...');
   saveCache();

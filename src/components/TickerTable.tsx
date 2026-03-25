@@ -83,6 +83,7 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
 
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   // Collect computed row data from child components for sorting and export.
   // Using a ref so mutations don't trigger re-renders.
@@ -184,19 +185,23 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
     abortControllerRef.current = controller;
 
     setIsRefreshing(true);
+    setRefreshError(null);
     try {
-      const results = await stockDataAdapter.refreshPrices(tickers, controller.signal);
-      for (const { ticker, price, changePercent } of results) {
-        queryClient.setQueryData<RawStockData>(['stock', ticker], (old) => {
-          if (!old) return old;
-          return { ...old, price, changePercent };
-        });
+      const results = await stockDataAdapter.refreshStocks(tickers, controller.signal);
+      const failed = results.filter((r: any) => r.error);
+      if (failed.length > 0) {
+        setRefreshError(`Refresh failed for: ${failed.map((r: any) => r.ticker).join(', ')}`);
+      }
+      for (const result of results) {
+        if (result.error) continue;
+        queryClient.setQueryData<RawStockData>(['stock', result.ticker], result);
       }
     } catch (err) {
       if ((err as DOMException).name === 'AbortError') {
         console.log('Price refresh aborted');
         return;
       }
+      setRefreshError('Price refresh failed. Real-time data unavailable.');
       console.error('Price refresh failed:', err);
     } finally {
       setIsRefreshing(false);
@@ -215,6 +220,12 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
         isRefreshing={isRefreshing}
         onHelpOpen={onHelpOpen}
       />
+      {refreshError && (
+        <div className="gs-refresh-error" role="alert">
+          {refreshError}
+          <button className="gs-refresh-error-dismiss" onClick={() => setRefreshError(null)} aria-label="Dismiss">✕</button>
+        </div>
+      )}
       <div className="gs-table-wrap">
         <table className="gs-table" role="table" aria-label="Ticker table" ref={tableRef}>
           <TableHeader

@@ -11,8 +11,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest --run",
-    "kill-server": "lsof -ti :3001 | xargs kill -15 2>/dev/null; sleep 2; lsof -ti :3001 | xargs kill -9 2>/dev/null; pkill -f 'puppeteer.*Google Chrome for Testing' 2>/dev/null; echo 'Server and Puppeteer processes cleared'",
-    "invalidate-cache": "rm -f server/.stock-cache.json && echo 'Stock cache invalidated'"
+    "kill-server": "lsof -ti :3001 | xargs kill -15 2>/dev/null; sleep 2; lsof -ti :3001 | xargs kill -9 2>/dev/null; lsof -ti :5173 | xargs kill -15 2>/dev/null; sleep 1; lsof -ti :5173 | xargs kill -9 2>/dev/null; pkill -f 'puppeteer.*Google Chrome for Testing' 2>/dev/null; echo 'Server, Vite, and Puppeteer processes cleared'",
+    "invalidate-cache": "rm -f server/.stock-cache.json && echo 'Stock cache invalidated'",
+    "restart-server": "npm run kill-server && npm run dev:all"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.91.0",

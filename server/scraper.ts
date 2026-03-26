@@ -6,6 +6,7 @@ import puppeteer, { type Browser, type ElementHandle, type Page, type HTTPRespon
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { metrics } from './metrics.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CACHE_FILE = resolve(__dirname, '.stock-cache.json');
@@ -111,7 +112,7 @@ function loadCache(): void {
         loaded++;
       }
     }
-    console.log(`[scraper] Loaded ${loaded} cached tickers from disk`);
+    metrics.log(`Loaded ${loaded} cached tickers from disk`);
   } catch {
     // No cache file or invalid — start fresh
   }
@@ -122,7 +123,7 @@ export function saveCache(): void {
     const obj = Object.fromEntries(cache.entries());
     writeFileSync(CACHE_FILE, JSON.stringify(obj, null, 2) + '\n');
   } catch (err) {
-    console.warn('[scraper] Failed to save cache:', toError(err).message);
+    metrics.log(`Failed to save cache: ${toError(err).message}`);
   }
 }
 
@@ -174,9 +175,9 @@ export async function closeBrowser(): Promise<void> {
 export async function warmUp(): Promise<void> {
   try {
     await getBrowser();
-    console.log('[scraper] Chrome browser ready');
+    metrics.log('Chrome browser ready');
   } catch (err) {
-    console.warn('[scraper] Chrome not available:', toError(err).message);
+    metrics.log(`Chrome not available: ${toError(err).message}`);
   }
 }
 
@@ -305,8 +306,8 @@ async function fetchProfile(ticker: string, signal?: AbortSignal): Promise<Profi
 
     if (profileData.sector || profileData.industry) return profileData;
     return null;
-  } catch (err) {
-    console.warn(`[${ticker}] Profile fetch failed:`, toError(err).message);
+  } catch {
+    metrics.log(`${ticker} profile fetch failed`);
     return null;
   } finally {
     await cleanup();
@@ -382,8 +383,8 @@ async function scrapeBalanceSheet(ticker: string, signal?: AbortSignal): Promise
       };
     });
     return data;
-  } catch (err) {
-    console.warn(`[${ticker}] Balance sheet scrape failed:`, toError(err).message);
+  } catch {
+    metrics.log(`${ticker} balance sheet scrape failed`);
     return null;
   } finally {
     await cleanup();
@@ -489,14 +490,33 @@ function parseNum(raw: string | null): number | null {
 }
 
 // ---------------------------------------------------------------------------
+// In-flight deduplication with ref-counted abort
+// ---------------------------------------------------------------------------
+
+interface InflightEntry {
+  promise: Promise<TickerResult>;
+  abort: AbortController;
+  refCount: number;
+  settled: boolean;
+  graceTimer: ReturnType<typeof setTimeout> | null;
+}
+
+const inflight = new Map<string, InflightEntry>();
+
+// ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
 
-export async function refreshStock(ticker: string, signal?: AbortSignal): Promise<TickerResult> {
+export async function refreshStock(ticker: string): Promise<TickerResult> {
   const symbol = ticker.toUpperCase().trim();
-  console.log(`[${symbol}] Refreshing stock...`);
   cache.delete(symbol);
-  return fetchTickerData(symbol, signal);
+  const existing = inflight.get(symbol);
+  if (existing) {
+    if (existing.graceTimer) clearTimeout(existing.graceTimer);
+    existing.abort.abort();
+    inflight.delete(symbol);
+  }
+  return fetchTickerData(symbol);
 }
 
 /**
@@ -514,95 +534,173 @@ function isCompleteResult(result: TickerResult): boolean {
   );
 }
 
-export async function fetchTickerData(ticker: string, signal?: AbortSignal): Promise<TickerResult> {
+/**
+ * Fetch ticker data with deduplication. Multiple callers for the same ticker
+ * share one scrape. The scrape aborts when all callers disconnect.
+ *
+ * @param requestSignal - The HTTP request's abort signal. When the client
+ *   disconnects this fires, decrementing the ref count. When it hits 0
+ *   the underlying scrape is aborted.
+ */
+export async function fetchTickerData(ticker: string, requestSignal?: AbortSignal): Promise<TickerResult> {
   const symbol = ticker.toUpperCase().trim();
 
   const cached = cache.get(symbol);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL && isCompleteResult(cached.data)) {
-    console.log(`[${symbol}] Returning cached data`);
     return cached.data;
   }
 
-  // 1. Quote summary (EPS, dividend, book value, etc.)
-  console.log(`[${symbol}] Stage 1/4: Fetching quote summary...`);
-  const summary = await fetchQuoteSummary(symbol, signal);
-  const fd = summary.financialData ?? {};
-  const sd = summary.summaryDetail ?? {};
-  const ks = summary.defaultKeyStatistics ?? {};
-  const ap = summary.assetProfile ?? {};
+  let entry = inflight.get(symbol);
 
-  let price = rawVal(fd.currentPrice) ?? rawVal(summary.price?.regularMarketPrice);
-  let prevClose = rawVal(summary.price?.regularMarketPreviousClose);
+  // Only piggyback if the scrape is still running
+  if (entry && !entry.settled) {
+    entry.refCount++;
+    if (entry.graceTimer) { clearTimeout(entry.graceTimer); entry.graceTimer = null; }
+  } else {
+    // Start a new scrape
+    const abort = new AbortController();
+    const promise = scrapeTickerData(symbol, abort.signal);
+    entry = { promise, abort, refCount: 1, settled: false, graceTimer: null };
+    inflight.set(symbol, entry);
 
-  // 2. Real-time price (quote summary HTML is CDN-cached and often stale)
-  console.log(`[${symbol}] Stage 2/4: Fetching real-time price...`);
-  const rtData = await getRealtimePrice(symbol, signal);
-  price = rtData.price;
-  prevClose = rtData.prevClose ?? prevClose;
+    // When the scrape settles (success or failure), mark it and clean up
+    const e = entry;
+    promise.then(
+      () => { e.settled = true; if (inflight.get(symbol) === e) inflight.delete(symbol); },
+      () => { e.settled = true; if (inflight.get(symbol) === e) inflight.delete(symbol); },
+    );
+  }
 
-  const changePercent = rtData.changePercent ?? (
-    (price != null && prevClose != null && prevClose !== 0)
-      ? Math.round(((price - prevClose) / prevClose) * 10000) / 100
-      : null
-  );
-  const eps = rawVal(ks.trailingEps);
-  const divRate = rawVal(sd.dividendRate);
-  const divYieldRaw = rawVal(sd.dividendYield);
-  const divYieldPct = divYieldRaw != null ? Math.round(divYieldRaw * 10000) / 100 : null;
-  const bookValue = rawVal(ks.bookValue);
-  const priceToBook = rawVal(ks.priceToBook);
-  const sharesOutstandingQuote = rawVal(ks.sharesOutstanding);
+  const currentEntry = entry;
 
-  // 3. Balance sheet (goodwill, intangibles, full assets/liabilities)
-  console.log(`[${symbol}] Stage 3/4: Scraping balance sheet...`);
-  const bsData = await scrapeBalanceSheet(symbol, signal);
-
-  const K = 1000; // Yahoo reports balance sheet values in thousands
-  const bsTotalAssets = bsData ? parseNum(bsData.totalAssets) : null;
-  const bsGoodwill = bsData ? parseNum(bsData.goodwillNet) : null;
-  const bsIntangibles = bsData ? parseNum(bsData.intangiblesNet) : null;
-  const bsLiabilities = bsData ? parseNum(bsData.liabilitiesTotal) : null;
-  const bsShares = bsData ? parseNum(bsData.sharesOutstanding) : null;
-
-  const totalDebt = rawVal(fd.totalDebt);
-  const totalEquity = bookValue != null && sharesOutstandingQuote != null
-    ? bookValue * sharesOutstandingQuote : null;
-
-  const relatedTickers = bsData?.relatedTickers?.filter((t) => t !== symbol) ?? [];
-
-  // 4. Profile (sector/industry)
-  console.log(`[${symbol}] Stage 4/4: Fetching profile...`);
-  const profile = await fetchProfile(symbol, signal);
-  const sector = profile?.sector || toStringVal(ap.sector);
-  const industry = profile?.industry || toStringVal(ap.industry);
-
-  const result: TickerResult = {
-    ticker: symbol,
-    price,
-    changePercent,
-    date: new Date().toISOString().split('T')[0],
-    sector,
-    industry,
-    divYield: divRate,
-    eps,
-    totalAssets: bsTotalAssets != null ? bsTotalAssets * K
-      : (totalEquity != null && totalDebt != null ? totalEquity + totalDebt : null),
-    goodwillNet: bsGoodwill != null ? bsGoodwill * K : null,
-    intangiblesNet: bsIntangibles != null ? bsIntangibles * K : null,
-    liabilitiesTotal: bsLiabilities != null ? bsLiabilities * K : totalDebt,
-    sharesOutstanding: bsShares != null ? bsShares * K : sharesOutstandingQuote,
-    dividendPercent: divYieldPct,
-    bookValue,
-    priceToBook,
-    relatedTickers,
+  // When this request disconnects, decrement. Grace period before aborting.
+  let disconnected = false;
+  const onDisconnect = (): void => {
+    if (disconnected) return;
+    disconnected = true;
+    currentEntry.refCount--;
+    if (currentEntry.refCount <= 0 && !currentEntry.settled && inflight.get(symbol) === currentEntry) {
+      currentEntry.graceTimer = setTimeout(() => {
+        if (currentEntry.refCount <= 0 && !currentEntry.settled && inflight.get(symbol) === currentEntry) {
+          currentEntry.abort.abort();
+          inflight.delete(symbol);
+          metrics.log(`${symbol} aborted — no clients after grace period`);
+        }
+      }, 5000);
+    }
   };
 
-  cache.set(symbol, { data: result, timestamp: Date.now() });
-  if (isCompleteResult(result)) {
-    saveCache();
-  } else {
-    console.warn(`[${symbol}] Incomplete scrape (missing sector/industry/relatedTickers) — not persisting to disk`);
+  if (requestSignal) {
+    if (requestSignal.aborted) { onDisconnect(); throw new Error('Aborted'); }
+    requestSignal.addEventListener('abort', onDisconnect, { once: true });
   }
-  console.log(`[${symbol}] Done — price: ${result.price}, eps: ${result.eps}, bookValue: ${result.bookValue}`);
-  return result;
+
+  try {
+    return await currentEntry.promise;
+  } finally {
+    if (requestSignal) requestSignal.removeEventListener('abort', onDisconnect);
+    if (!disconnected) {
+      currentEntry.refCount--;
+    }
+  }
+}
+
+/** The actual scrape — aborts when its signal fires. */
+async function scrapeTickerData(symbol: string, signal: AbortSignal): Promise<TickerResult> {
+
+  metrics.startProcess(symbol);
+
+  try {
+    // 1. Quote summary (EPS, dividend, book value, etc.)
+    metrics.updateStage(symbol, 0, 'quote summary');
+    const summary = await fetchQuoteSummary(symbol, signal);
+    metrics.updateStage(symbol, 1, 'quote summary ✓');
+    const fd = summary.financialData ?? {};
+    const sd = summary.summaryDetail ?? {};
+    const ks = summary.defaultKeyStatistics ?? {};
+    const ap = summary.assetProfile ?? {};
+
+    let price = rawVal(fd.currentPrice) ?? rawVal(summary.price?.regularMarketPrice);
+    let prevClose = rawVal(summary.price?.regularMarketPreviousClose);
+
+    // 2. Real-time price (quote summary HTML is CDN-cached and often stale)
+    metrics.updateStage(symbol, 1, 'real-time price');
+    const rtData = await getRealtimePrice(symbol, signal);
+    metrics.updateStage(symbol, 2, 'real-time price ✓');
+    price = rtData.price;
+    prevClose = rtData.prevClose ?? prevClose;
+
+    const changePercent = rtData.changePercent ?? (
+      (price != null && prevClose != null && prevClose !== 0)
+        ? Math.round(((price - prevClose) / prevClose) * 10000) / 100
+        : null
+    );
+    const eps = rawVal(ks.trailingEps);
+    const divRate = rawVal(sd.dividendRate);
+    const divYieldRaw = rawVal(sd.dividendYield);
+    const divYieldPct = divYieldRaw != null ? Math.round(divYieldRaw * 10000) / 100 : null;
+    const bookValue = rawVal(ks.bookValue);
+    const priceToBook = rawVal(ks.priceToBook);
+    const sharesOutstandingQuote = rawVal(ks.sharesOutstanding);
+
+    // 3. Balance sheet (goodwill, intangibles, full assets/liabilities)
+    metrics.updateStage(symbol, 2, 'balance sheet');
+    const bsData = await scrapeBalanceSheet(symbol, signal);
+    metrics.updateStage(symbol, 3, 'balance sheet ✓');
+
+    const K = 1000; // Yahoo reports balance sheet values in thousands
+    const bsTotalAssets = bsData ? parseNum(bsData.totalAssets) : null;
+    const bsGoodwill = bsData ? parseNum(bsData.goodwillNet) : null;
+    const bsIntangibles = bsData ? parseNum(bsData.intangiblesNet) : null;
+    const bsLiabilities = bsData ? parseNum(bsData.liabilitiesTotal) : null;
+    const bsShares = bsData ? parseNum(bsData.sharesOutstanding) : null;
+
+    const totalDebt = rawVal(fd.totalDebt);
+    const totalEquity = bookValue != null && sharesOutstandingQuote != null
+      ? bookValue * sharesOutstandingQuote : null;
+
+    const relatedTickers = bsData?.relatedTickers?.filter((t) => t !== symbol) ?? [];
+
+    // 4. Profile (sector/industry)
+    metrics.updateStage(symbol, 3, 'profile');
+    const profile = await fetchProfile(symbol, signal);
+    metrics.updateStage(symbol, 4, 'complete');
+    const sector = profile?.sector || toStringVal(ap.sector);
+    const industry = profile?.industry || toStringVal(ap.industry);
+
+    const result: TickerResult = {
+      ticker: symbol,
+      price,
+      changePercent,
+      date: new Date().toISOString().split('T')[0],
+      sector,
+      industry,
+      divYield: divRate,
+      eps,
+      totalAssets: bsTotalAssets != null ? bsTotalAssets * K
+        : (totalEquity != null && totalDebt != null ? totalEquity + totalDebt : null),
+      goodwillNet: bsGoodwill != null ? bsGoodwill * K : null,
+      intangiblesNet: bsIntangibles != null ? bsIntangibles * K : null,
+      liabilitiesTotal: bsLiabilities != null ? bsLiabilities * K : totalDebt,
+      sharesOutstanding: bsShares != null ? bsShares * K : sharesOutstandingQuote,
+      dividendPercent: divYieldPct,
+      bookValue,
+      priceToBook,
+      relatedTickers,
+    };
+
+    cache.set(symbol, { data: result, timestamp: Date.now() });
+    if (isCompleteResult(result)) {
+      saveCache();
+    } else {
+      metrics.log(`${symbol} incomplete scrape — not persisting to disk`);
+    }
+    return result;
+  } finally {
+    if (signal.aborted) {
+      metrics.cancelProcess(symbol);
+    } else {
+      metrics.endProcess(symbol);
+    }
+  }
 }

@@ -9,7 +9,8 @@
  */
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { fetchTickerData, refreshStock, closeBrowser, warmUp, saveCache } from './scraper.js';
-import { toError, isAbortError } from './utils.js';
+import { toError } from './utils.js';
+import { metrics } from './metrics.js';
 
 const app = express();
 const PORT = 3001;
@@ -38,15 +39,14 @@ app.get('/api/stock/:ticker', async (req: Request<{ ticker: string }>, res: Resp
 
   try {
     const data = await fetchTickerData(ticker, abortController.signal);
-    res.json(data);
-  } catch (err) {
-    const error = toError(err);
-    if (isAbortError(error)) {
-      console.log(`[server] Fetch aborted for ${ticker.toUpperCase()}`);
+    if (abortController.signal.aborted) {
       if (!res.headersSent) res.status(499).end();
       return;
     }
-    console.error(`[server] Error for ${ticker}:`, error.message);
+    res.json(data);
+  } catch (err) {
+    const error = toError(err);
+    metrics.log(`Error for ${ticker}: ${error.message}`);
     if (!res.headersSent) res.status(500).json({ error: error.message });
   }
 });
@@ -65,46 +65,43 @@ app.post('/api/refresh-stocks', async (req: Request, res: Response) => {
     const results: Array<{ ticker: string; price: number | null; changePercent: number | null; error?: string }> = [];
     for (const ticker of tickers) {
       if (abortController.signal.aborted) {
-        console.log('[server] Refresh aborted');
+        metrics.log('Refresh aborted');
         break;
       }
       try {
-        const result = await refreshStock(ticker, abortController.signal);
+        const result = await refreshStock(ticker);
         results.push(result);
       } catch (err) {
         const error = toError(err);
-        if (isAbortError(error)) throw err;
-        console.warn(`[server] Refresh failed for ${ticker}:`, error.message);
+        metrics.log(`Refresh failed for ${ticker}: ${error.message}`);
         results.push({ ticker: ticker.toUpperCase(), price: null, changePercent: null, error: error.message });
       }
     }
     if (!res.headersSent) res.json({ results });
   } catch (err) {
     const error = toError(err);
-    if (isAbortError(error)) {
-      console.log('[server] Refresh aborted');
-      if (!res.headersSent) res.status(499).end();
-      return;
-    }
-    console.error('[server] Refresh error:', error.message);
+    metrics.log(`Refresh error: ${error.message}`);
     if (!res.headersSent) res.status(500).json({ error: error.message });
   }
 });
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('[server] Unhandled error:', err.message);
+  metrics.log(`Unhandled error: ${err.message}`);
   if (!res.headersSent) res.status(500).json({ error: err.message });
 });
 
-process.on('uncaughtException', (err) => console.error('[server] Uncaught exception:', err));
-process.on('unhandledRejection', (reason) => console.error('[server] Unhandled rejection:', reason));
+process.on('uncaughtException', (err) => metrics.log(`Uncaught exception: ${err}`));
+process.on('unhandledRejection', (reason) => metrics.log(`Unhandled rejection: ${reason}`));
 
 app.listen(PORT, () => {
-  console.log(`[server] Yahoo Finance proxy running on http://localhost:${PORT}`);
+  metrics.setBanner(`Yahoo Finance proxy → http://localhost:${PORT}`);
   warmUp();
+  // Give Vite a moment to start, then probe for it
+  setTimeout(() => { metrics.detectVite().catch(() => {}); }, 3000);
 });
 
 process.on('SIGINT', async () => {
+  metrics.destroy();
   console.log('\n[server] Shutting down...');
   saveCache();
   await closeBrowser();
@@ -112,6 +109,7 @@ process.on('SIGINT', async () => {
 });
 
 process.on('SIGTERM', async () => {
+  metrics.destroy();
   saveCache();
   await closeBrowser();
   process.exit(0);

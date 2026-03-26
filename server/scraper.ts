@@ -112,7 +112,9 @@ function loadCache(): void {
         loaded++;
       }
     }
-    metrics.log(`Loaded ${loaded} cached tickers from disk`);
+    const evicted = entries.length - loaded;
+    metrics.log(`Loaded ${loaded} cached tickers from disk` + (evicted > 0 ? ` (${evicted} evicted)` : ''));
+    if (evicted > 0) saveCache();
   } catch {
     // No cache file or invalid — start fresh
   }

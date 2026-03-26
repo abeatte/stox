@@ -499,11 +499,26 @@ export async function refreshStock(ticker: string, signal?: AbortSignal): Promis
   return fetchTickerData(symbol, signal);
 }
 
+/**
+ * Returns true when a scrape result has all the fields that Yahoo Finance
+ * should always provide for a real stock.  When any of these are missing
+ * the scrape likely hit a consent wall or a partial page load and the
+ * result should NOT be cached so the next request retries.
+ */
+function isCompleteResult(result: TickerResult): boolean {
+  return (
+    result.price != null &&
+    result.sector != null &&
+    result.industry != null &&
+    result.relatedTickers.length > 0
+  );
+}
+
 export async function fetchTickerData(ticker: string, signal?: AbortSignal): Promise<TickerResult> {
   const symbol = ticker.toUpperCase().trim();
 
   const cached = cache.get(symbol);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL && isCompleteResult(cached.data)) {
     console.log(`[${symbol}] Returning cached data`);
     return cached.data;
   }
@@ -583,7 +598,11 @@ export async function fetchTickerData(ticker: string, signal?: AbortSignal): Pro
   };
 
   cache.set(symbol, { data: result, timestamp: Date.now() });
-  saveCache();
+  if (isCompleteResult(result)) {
+    saveCache();
+  } else {
+    console.warn(`[${symbol}] Incomplete scrape (missing sector/industry/relatedTickers) — not persisting to disk`);
+  }
   console.log(`[${symbol}] Done — price: ${result.price}, eps: ${result.eps}, bookValue: ${result.bookValue}`);
   return result;
 }

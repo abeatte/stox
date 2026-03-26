@@ -3,6 +3,8 @@ import { useState, useCallback } from 'react';
 export interface PopoverPosition {
   x: number;
   y: number;
+  /** Top edge of the trigger element — useful for flipping the popover above. */
+  triggerTop: number;
 }
 
 /**
@@ -18,6 +20,7 @@ export function usePopover(anchor: 'top' | 'bottom' = 'top') {
       setPosition({
         x: rect.left + rect.width / 2,
         y: anchor === 'top' ? rect.top : rect.bottom,
+        triggerTop: rect.top,
       });
     },
     [anchor],

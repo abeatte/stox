@@ -111,6 +111,7 @@ export function StockRow({
 
         if (col.key === 'ticker') {
           const allTickersUpper = allTickers.map((t) => t.toUpperCase());
+          const visibleRelated = (relatedTickers ?? []).slice(0, 10);
           return (
             <td
               key={col.key}
@@ -125,14 +126,21 @@ export function StockRow({
               >
                 {ticker}
               </a>
-              {tickerPopover && hasRelated && createPortal(
+              {tickerPopover && hasRelated && (() => {
+                // Estimate popover height: title (~20px) + rows (~26px each) + padding (~16px)
+                const estimatedHeight = 20 + visibleRelated.length * 26 + 16;
+                const fitsBelow = tickerPopover.y + estimatedHeight <= window.innerHeight;
+                const top = fitsBelow ? tickerPopover.y : tickerPopover.triggerTop;
+                const flipClass = fitsBelow ? '' : ' gs-related-popover-above';
+
+                return createPortal(
                 <div
-                  className="gs-related-popover"
+                  className={`gs-related-popover${flipClass}`}
                   role="tooltip"
-                  style={{ left: tickerPopover.x, top: tickerPopover.y }}
+                  style={{ left: tickerPopover.x, top }}
                 >
                   <div className="gs-related-popover-title">Related Tickers</div>
-                  {relatedTickers.map((rt) => {
+                  {visibleRelated.map((rt) => {
                     const inList = allTickersUpper.includes(rt.toUpperCase());
                     return (
                       <div key={rt} className="gs-related-popover-row">
@@ -153,9 +161,13 @@ export function StockRow({
                       </div>
                     );
                   })}
+                  {relatedTickers.length > visibleRelated.length && (
+                    <div className="gs-related-popover-row" style={{ justifyContent: 'center', color: '#9aa0a6' }}>…</div>
+                  )}
                 </div>,
                 document.body,
-              )}
+              );
+              })()}
             </td>
           );
         }

@@ -321,7 +321,6 @@ body {
 /* ── Related tickers popover ── */
 .gs-related-popover {
   position: fixed;
-  transform: translateX(-50%);
   margin-top: -4px;
   background: #202124;
   color: #fff;
@@ -332,6 +331,11 @@ body {
   z-index: 9999;
   pointer-events: auto;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.gs-related-popover-above {
+  transform: translateY(-100%);
+  margin-top: 4px;
 }
 
 .gs-related-popover-title {

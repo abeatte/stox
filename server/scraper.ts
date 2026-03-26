@@ -4,12 +4,10 @@
  */
 import puppeteer, { type Browser, type ElementHandle, type Page, type HTTPResponse } from 'puppeteer';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { metrics } from './metrics.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const CACHE_FILE = resolve(__dirname, '.stock-cache.json');
+const CACHE_FILE = resolve('server', '.stock-cache.json');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -48,6 +46,8 @@ interface TickerResult {
   bookValue: number | null;
   priceToBook: number | null;
   relatedTickers: string[];
+  /** Instrument type from Yahoo Finance (e.g. EQUITY, MUTUALFUND, ETF). */
+  quoteType: string | null;
   error?: string;
 }
 
@@ -525,9 +525,16 @@ export async function refreshStock(ticker: string): Promise<TickerResult> {
  * the scrape likely hit a consent wall or a partial page load and the
  * result should NOT be cached so the next request retries.
  */
+/** Quote types that don't have sector/industry. */
+const NO_SECTOR_TYPES = new Set(['MUTUALFUND', 'ETF', 'INDEX', 'CURRENCY', 'CRYPTOCURRENCY', 'FUTURE']);
+
 function isCompleteResult(result: TickerResult): boolean {
+  if (result.price == null) return false;
+
+  // Mutual funds, ETFs, etc. legitimately lack sector/industry (and sometimes relatedTickers)
+  if (result.quoteType && NO_SECTOR_TYPES.has(result.quoteType)) return true;
+
   return (
-    result.price != null &&
     result.sector != null &&
     result.industry != null &&
     result.relatedTickers.length > 0
@@ -620,6 +627,8 @@ async function scrapeTickerData(symbol: string, signal: AbortSignal): Promise<Ti
     const ks = summary.defaultKeyStatistics ?? {};
     const ap = summary.assetProfile ?? {};
 
+    const quoteType = toStringVal(summary.price?.quoteType);
+
     let price = rawVal(fd.currentPrice) ?? rawVal(summary.price?.regularMarketPrice);
     let prevClose = rawVal(summary.price?.regularMarketPreviousClose);
 
@@ -687,6 +696,7 @@ async function scrapeTickerData(symbol: string, signal: AbortSignal): Promise<Ti
       bookValue,
       priceToBook,
       relatedTickers,
+      quoteType,
     };
 
     cache.set(symbol, { data: result, timestamp: Date.now() });

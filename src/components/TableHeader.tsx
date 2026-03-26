@@ -1,6 +1,6 @@
 import type { RefObject } from 'react';
 import { COLUMNS } from '../columns';
-import { ColumnKey, SortKey, SortCriterion } from '../types';
+import type { ColumnKey, SortKey, SortCriterion } from '../types';
 
 export interface TableHeaderProps {
   sortCriteria: SortCriterion[];
@@ -25,18 +25,21 @@ function SortIndicator({
   const idx = sortCriteria.findIndex((c) => c.column === column);
   if (idx === -1) return null;
   const multiSort = sortCriteria.length > 1;
+  const dir = sortCriteria[idx].direction;
+  const symbol = dir === 'intr' ? '✓' : dir === 'asc' ? '▲' : '▼';
   return (
-    <span aria-hidden="true" className="gs-sort-arrow">
-      {sortCriteria[idx].direction === 'asc' ? '▲' : '▼'}
+    <span aria-hidden="true" className={`gs-sort-arrow${dir === 'intr' ? ' gs-sort-intrinsic' : ''}`}>
+      {symbol}
       {multiSort && <sup className="gs-sort-priority">{idx + 1}</sup>}
     </span>
   );
 }
 
 /** Resolve aria-sort value for a column, or undefined if not sorted. */
-function getAriaSort(sortCriteria: SortCriterion[], column: SortKey): 'ascending' | 'descending' | undefined {
+function getAriaSort(sortCriteria: SortCriterion[], column: SortKey): 'ascending' | 'descending' | 'other' | undefined {
   const criterion = sortCriteria.find((c) => c.column === column);
   if (!criterion) return undefined;
+  if (criterion.direction === 'intr') return 'other';
   return criterion.direction === 'asc' ? 'ascending' : 'descending';
 }
 

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
-import { ColumnKey, SortKey, SortCriterion, StockRowData } from '../types';
+import { ColumnKey, SortKey, SortCriterion, StockRowData, INTRINSIC_COLUMNS } from '../types';
 import { COLUMNS } from '../columns';
+import { getCellHighlight } from '../utils/cellHighlight';
 
 /**
  * Filters ticker symbols by case-insensitive substring match on the query.
@@ -10,6 +11,22 @@ export function filterTickers(tickers: string[], query: string): string[] {
   if (!query) return tickers;
   const lower = query.toLowerCase();
   return tickers.filter((t) => t.toLowerCase().includes(lower));
+}
+
+/**
+ * Returns a numeric rank for intrinsic sorting.
+ * Lower rank = more beneficial (sorted first).
+ *
+ * Ranking: green (0) → yellow (1) → red non-negative (2) → red negative (3) → null (4)
+ */
+export function getIntrinsicRank(key: ColumnKey, value: number | null): number {
+  if (value === null) return 4;
+  const highlight = getCellHighlight(key, value);
+  if (highlight === 'gs-cell-green') return 0;
+  if (highlight === 'gs-cell-yellow') return 1;
+  // Red zone: negative values sink to the very bottom
+  if (highlight === 'gs-cell-red') return value < 0 ? 3 : 2;
+  return 2; // no highlight = neutral, treat as mid-tier
 }
 
 /**
@@ -45,6 +62,19 @@ export function sortRows(
       const dir = direction === 'asc' ? 1 : -1;
       let cmp = 0;
 
+      if (direction === 'intr') {
+        const aRank = getIntrinsicRank(colKey, typeof aVal === 'number' ? aVal : null);
+        const bRank = getIntrinsicRank(colKey, typeof bVal === 'number' ? bVal : null);
+        cmp = aRank - bRank;
+        if (cmp !== 0) return cmp;
+        // Within the same rank, sort by value ascending (lower ratio = more undervalued)
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          cmp = aVal - bVal;
+        }
+        if (cmp !== 0) return cmp;
+        continue;
+      }
+
       if (colDef.sortType === 'numeric') {
         cmp = Number(aVal) - Number(bVal);
       } else {
@@ -75,6 +105,8 @@ export function useTableState() {
       setSortCriteria((prev) => {
         const idx = prev.findIndex((c) => c.column === col);
 
+        const hasIntrinsic = INTRINSIC_COLUMNS.has(col);
+
         if (multi) {
           // Shift+click: add, toggle, or remove from the list
           if (idx === -1) {
@@ -85,16 +117,24 @@ export function useTableState() {
             next[idx] = { column: col, direction: 'desc' };
             return next;
           }
-          // Third shift-click: remove this criterion
+          if (prev[idx].direction === 'desc' && hasIntrinsic) {
+            const next = [...prev];
+            next[idx] = { column: col, direction: 'intr' };
+            return next;
+          }
+          // Remove this criterion
           return prev.filter((_, i) => i !== idx);
         }
 
-        // Plain click: single-column sort with 3-click cycle
+        // Plain click: single-column sort cycle
         if (idx !== -1 && prev.length === 1) {
           if (prev[0].direction === 'asc') {
             return [{ column: col, direction: 'desc' }];
           }
-          // Third click: clear
+          if (prev[0].direction === 'desc' && hasIntrinsic) {
+            return [{ column: col, direction: 'intr' }];
+          }
+          // Clear
           return [];
         }
         return [{ column: col, direction: 'asc' }];

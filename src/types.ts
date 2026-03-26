@@ -62,8 +62,18 @@ export type SortKey = ColumnKey | 'star';
  */
 export interface SortCriterion {
   column: SortKey;
-  direction: 'asc' | 'desc';
+  direction: 'asc' | 'desc' | 'intr';
 }
+
+/**
+ * Columns that support the 'intrinsic' sort direction.
+ * These columns have green/yellow/red thresholds that define a "best to worst" ranking.
+ */
+export const INTRINSIC_COLUMNS: ReadonlySet<SortKey> = new Set<SortKey>([
+  'pBook',
+  'pTangbook',
+  'priceEarnings',
+]);
 
 /**
  * Union type of all valid column keys.

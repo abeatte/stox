@@ -192,6 +192,12 @@ body {
   color: #1a73e8;
 }
 
+.gs-table thead th .gs-sort-intrinsic {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0d7c3e;
+}
+
 .gs-sort-priority {
   font-size: 9px;
   margin-left: 1px;

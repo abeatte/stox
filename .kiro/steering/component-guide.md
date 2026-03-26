@@ -104,7 +104,7 @@ Throttle: 2s between requests. Cache: file-based `.stock-cache.json`, 4h TTL. Sh
 3. Add `ColumnDef` entry to `COLUMNS` array in `src/columns.ts`
 4. If computed: add logic to `computeStockRow()` in `src/utils/computeStockRow.ts`
 5. If special rendering needed: add case in `StockRow.tsx`
-6. If color-coded: add threshold logic to `getCellHighlight()` in `StockRow.tsx`
+6. If color-coded: add threshold logic to `getCellHighlight()` in `src/utils/cellHighlight.ts`
 7. Add formatter if new `FormatType` needed in `src/utils/formatters.ts`
 8. Update CSV exporter if column order matters
 9. Add CSS class in `src/index.css` if needed (use `gs-` prefix)

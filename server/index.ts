@@ -9,20 +9,10 @@
  */
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { fetchTickerData, refreshStock, closeBrowser, warmUp, saveCache } from './scraper.js';
+import { toError, isAbortError } from './utils.js';
 
 const app = express();
 const PORT = 3001;
-
-/** Type-safe error extraction from catch blocks. */
-function toError(err: unknown): Error {
-  if (err instanceof Error) return err;
-  return new Error(String(err));
-}
-
-/** Check if an error represents an aborted request. */
-function isAbortError(err: Error): boolean {
-  return err.name === 'AbortError' || err.message === 'Aborted';
-}
 
 app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader('Access-Control-Allow-Origin', '*');

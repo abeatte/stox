@@ -1,41 +1,9 @@
-import { useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { COLUMNS } from '../columns';
-import { StockRowData, ColumnKey } from '../types';
+import type { StockRowData } from '../types';
 import { formatValue, formatCurrency } from '../utils/formatters';
-
-/** Value type for cells that can be highlighted. */
-type CellValue = string | number | null;
-
-/**
- * Returns a CSS highlight class for specific cells based on value thresholds.
- */
-export function getCellHighlight(key: ColumnKey, value: CellValue): string | undefined {
-  if (key === 'dividendPercent' || key === 'divYield') {
-    if (value === null || value === 0) return 'gs-cell-yellow';
-  }
-
-  if (key === 'eps') {
-    if (typeof value !== 'number') return undefined;
-    if (value < 0) return 'gs-cell-red';
-  }
-
-  if (key === 'pBook' || key === 'pTangbook') {
-    if (typeof value !== 'number') return undefined;
-    if (value >= 0.15 && value <= 0.85) return 'gs-cell-green';
-    if (value > 0.85 && value <= 1.15) return 'gs-cell-yellow';
-    if (value < 0.15 || value > 1.15) return 'gs-cell-red';
-  }
-
-  if (key === 'priceEarnings') {
-    if (typeof value !== 'number') return undefined;
-    if (value >= 0 && value <= 15) return 'gs-cell-green';
-    if (value > 15 && value <= 20) return 'gs-cell-yellow';
-    if (value > 20 || value < 0) return 'gs-cell-red';
-  }
-
-  return undefined;
-}
+import { getCellHighlight } from '../utils/cellHighlight';
+import { usePopover } from '../hooks/usePopover';
 
 export interface StockRowProps {
   ticker: string;
@@ -49,8 +17,6 @@ export interface StockRowProps {
   isStarred: boolean;
   onToggleStar: (ticker: string) => void;
 }
-
-const NUMERIC_TYPES = new Set(['currency', 'percent', 'ratio', 'large-number']);
 
 /** Reusable star + remove action cells rendered at the end of every row. */
 function RowActions({
@@ -107,29 +73,10 @@ export function StockRow({
   isStarred,
   onToggleStar,
 }: StockRowProps) {
-  const [epsPopover, setEpsPopover] = useState<{ x: number; y: number } | null>(null);
-  const [tickerPopover, setTickerPopover] = useState<{ x: number; y: number } | null>(null);
-
-  const handleEpsMouseEnter = useCallback((e: React.MouseEvent<HTMLTableCellElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setEpsPopover({ x: rect.left + rect.width / 2, y: rect.top });
-  }, []);
-
-  const handleEpsMouseLeave = useCallback(() => {
-    setEpsPopover(null);
-  }, []);
+  const { position: epsPopover, onMouseEnter: handleEpsMouseEnter, onMouseLeave: handleEpsMouseLeave } = usePopover('top');
+  const { position: tickerPopover, onMouseEnter: handleTickerMouseEnter, onMouseLeave: handleTickerMouseLeave } = usePopover('bottom');
 
   const hasRelated = relatedTickers && relatedTickers.length > 0;
-
-  const handleTickerMouseEnter = useCallback((e: React.MouseEvent<HTMLTableCellElement>) => {
-    if (!hasRelated) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    setTickerPopover({ x: rect.left + rect.width / 2, y: rect.bottom });
-  }, [hasRelated]);
-
-  const handleTickerMouseLeave = useCallback(() => {
-    setTickerPopover(null);
-  }, []);
 
   const totalColumns = COLUMNS.length + 1; // +1 for the remove button column
   const actions = (
@@ -167,8 +114,8 @@ export function StockRow({
           return (
             <td
               key={col.key}
-              onMouseEnter={handleTickerMouseEnter}
-              onMouseLeave={handleTickerMouseLeave}
+              onMouseEnter={hasRelated ? handleTickerMouseEnter : undefined}
+              onMouseLeave={hasRelated ? handleTickerMouseLeave : undefined}
             >
               <a
                 href={`https://finance.yahoo.com/quote/${ticker}`}
@@ -213,7 +160,7 @@ export function StockRow({
           );
         }
 
-        const isNumeric = NUMERIC_TYPES.has(col.type);
+        const isNumeric = col.type !== 'text';
         const highlight = data ? getCellHighlight(col.key, value) : undefined;
         const className = [isNumeric ? 'gs-cell-number' : '', highlight ?? ''].filter(Boolean).join(' ') || undefined;
 

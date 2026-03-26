@@ -36,20 +36,48 @@ describe('getIntrinsicColor', () => {
     expect(getIntrinsicColor(1.0, 100, null)).toBe('#e8eaed');
   });
 
-  it('returns greenish color for low P:Book (undervalued)', () => {
+  it('returns greenish color for P:Book in green zone (0.15–0.85)', () => {
     const color = getIntrinsicColor(0.5, 50, 100);
-    // ratio = 0, so base green values
-    expect(color).toBe('rgb(206, 234, 214)');
+    // 0.5 is the midpoint of green zone — maximum green intensity
+    const [r, g, b] = parseRgb(color);
+    expect(r).toBeLessThan(200); // shifted green
+    expect(b).toBeLessThan(200);
+    expect(g).toBeGreaterThan(220);
   });
 
-  it('returns reddish color for high P:Book (overvalued)', () => {
+  it('returns yellowish color for P:Book in yellow zone (0.85–1.15)', () => {
+    const color = getIntrinsicColor(1.0, 100, 100);
+    const [r, g, b] = parseRgb(color);
+    // Yellow-ish: higher red, moderate green, lower blue
+    expect(r).toBeGreaterThan(230);
+    expect(g).toBeGreaterThan(220);
+    expect(b).toBeLessThan(210);
+  });
+
+  it('returns reddish color for high P:Book (>1.15)', () => {
     const color = getIntrinsicColor(2.0, 200, 100);
-    // ratio = 1, so r = 206+39=245, g = 234-36=198, b = 214-16=198
-    expect(color).toBe('rgb(245, 198, 198)');
+    const [r, g, b] = parseRgb(color);
+    expect(r).toBeGreaterThan(g);
+    expect(r).toBeGreaterThan(b);
   });
 
-  it('clamps P:Book to [0.5, 2.0] range', () => {
-    expect(getIntrinsicColor(0.1, 10, 100)).toBe(getIntrinsicColor(0.5, 50, 100));
-    expect(getIntrinsicColor(5.0, 500, 100)).toBe(getIntrinsicColor(2.0, 200, 100));
+  it('returns reddish color for negative P:Book', () => {
+    const color = getIntrinsicColor(-0.5, -50, 100);
+    const [r, g, b] = parseRgb(color);
+    expect(r).toBeGreaterThan(g);
+    expect(r).toBeGreaterThan(b);
+  });
+
+  it('returns reddish color for P:Book below 0.15', () => {
+    const color = getIntrinsicColor(0.05, 5, 100);
+    const [r, g, b] = parseRgb(color);
+    expect(r).toBeGreaterThan(g);
+    expect(r).toBeGreaterThan(b);
   });
 });
+
+function parseRgb(color: string): [number, number, number] {
+  const m = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  if (!m) throw new Error(`Invalid rgb: ${color}`);
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}

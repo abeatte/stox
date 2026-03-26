@@ -36,12 +36,36 @@ export function getDailyColor(changePercent: number | null): string {
 }
 
 /**
- * Returns a CSS background color on a green-to-red pastel scale for P:Book ratio.
- * Low P:Book (undervalued) = green, high P:Book (overvalued) = red.
- * Clamps to [0.5, 2.0] range.
+ * Returns a CSS background color for P:Book ratio matching cell highlight rules.
+ * Green: 0.15–0.85 (undervalued), Yellow: 0.85–1.15 (near book), Red: <0.15 or >1.15.
+ * Negative values are always red. Intensity scales within each zone.
  */
 export function getIntrinsicColor(pBook: number | null, price: number | null, bookValue: number | null): string {
   if (pBook === null || price === null || bookValue === null) return NEUTRAL_COLOR;
-  const ratio = (clamp(pBook, 0.5, 2.0) - 0.5) / 1.5; // 0 (green) to 1 (red)
-  return `rgb(${lerp(206, 39, ratio)}, ${lerp(234, -36, ratio)}, ${lerp(214, -16, ratio)})`;
+
+  // Red zone: negative or < 0.15
+  if (pBook < 0.15) {
+    // Deeper red the more negative / closer to 0
+    const intensity = clamp((0.15 - pBook) / 0.65, 0, 1); // 0 at 0.15, 1 at -0.5 or below
+    return `rgb(${lerp(232, 13, intensity)}, ${lerp(234, -46, intensity)}, ${lerp(237, -49, intensity)})`;
+  }
+
+  // Green zone: 0.15–0.85
+  if (pBook <= 0.85) {
+    // Greenest at 0.5 (midpoint), fading toward edges
+    const mid = 0.5;
+    const dist = Math.abs(pBook - mid) / 0.35; // 0 at center, 1 at edges
+    const intensity = 1 - dist;
+    return `rgb(${lerp(232, -60, intensity)}, ${lerp(234, -4, intensity)}, ${lerp(237, -70, intensity)})`;
+  }
+
+  // Yellow zone: 0.85–1.15
+  if (pBook <= 1.15) {
+    const intensity = clamp((pBook - 0.85) / 0.3, 0, 1); // 0 at 0.85, 1 at 1.15
+    return `rgb(${lerp(232, 23, intensity)}, ${lerp(234, -6, intensity)}, ${lerp(237, -72, intensity)})`;
+  }
+
+  // Red zone: > 1.15
+  const intensity = clamp((pBook - 1.15) / 0.85, 0, 1); // 0 at 1.15, 1 at 2.0+
+  return `rgb(${lerp(232, 13, intensity)}, ${lerp(234, -46, intensity)}, ${lerp(237, -49, intensity)})`;
 }

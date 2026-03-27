@@ -506,6 +506,32 @@ interface InflightEntry {
 const inflight = new Map<string, InflightEntry>();
 
 // ---------------------------------------------------------------------------
+// Concurrency limiter — at most MAX_CONCURRENT_SCRAPES Puppeteer scrapes at once
+// ---------------------------------------------------------------------------
+
+const MAX_CONCURRENT_SCRAPES = 3;
+let activeScrapes = 0;
+const scrapeQueue: Array<() => void> = [];
+
+/** Wait until a concurrency slot is available. */
+function acquireScrapeSlot(): Promise<void> {
+  if (activeScrapes < MAX_CONCURRENT_SCRAPES) {
+    activeScrapes++;
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    scrapeQueue.push(() => { activeScrapes++; resolve(); });
+  });
+}
+
+/** Release a concurrency slot and wake the next waiter. */
+function releaseScrapeSlot(): void {
+  activeScrapes--;
+  const next = scrapeQueue.shift();
+  if (next) next();
+}
+
+// ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
 
@@ -617,6 +643,9 @@ export async function fetchTickerData(ticker: string, requestSignal?: AbortSigna
 /** The actual scrape — aborts when its signal fires. */
 async function scrapeTickerData(symbol: string, signal: AbortSignal): Promise<TickerResult> {
 
+  await acquireScrapeSlot();
+  if (signal.aborted) { releaseScrapeSlot(); throw new Error('Aborted'); }
+
   metrics.startProcess(symbol);
 
   try {
@@ -709,6 +738,7 @@ async function scrapeTickerData(symbol: string, signal: AbortSignal): Promise<Ti
     }
     return result;
   } finally {
+    releaseScrapeSlot();
     if (signal.aborted) {
       metrics.cancelProcess(symbol);
     } else {

@@ -1,5 +1,6 @@
 const TICKER_KEY = 'stox:tickers';
 const STARRED_KEY = 'stox:starred';
+const LIVE_MODE_KEY = 'stox:liveMode';
 
 // In-memory fallback when localStorage is unavailable
 const memoryStore = new Map<string, string[]>();
@@ -66,4 +67,25 @@ export function getStarredTickers(): string[] {
 
 export function setStarredTickers(starred: string[]): void {
   setList(STARRED_KEY, starred);
+}
+
+export function getLiveMode(): boolean {
+  if (!storageAvailable) return memoryStore.get(LIVE_MODE_KEY)?.[0] !== 'false';
+  try {
+    return localStorage.getItem(LIVE_MODE_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+export function setLiveMode(live: boolean): void {
+  if (!storageAvailable) {
+    memoryStore.set(LIVE_MODE_KEY, [String(live)]);
+    return;
+  }
+  try {
+    localStorage.setItem(LIVE_MODE_KEY, String(live));
+  } catch {
+    memoryStore.set(LIVE_MODE_KEY, [String(live)]);
+  }
 }

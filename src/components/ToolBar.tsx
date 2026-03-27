@@ -11,6 +11,8 @@ export interface ToolBarProps {
   onHelpOpen: () => void;
   onAddStarred: () => void;
   hasStarred: boolean;
+  isLive: boolean;
+  onToggleLive: (live: boolean) => void;
 }
 
 function SearchInput({
@@ -62,6 +64,8 @@ export function ToolBar({
   onHelpOpen,
   onAddStarred,
   hasStarred,
+  isLive,
+  onToggleLive,
 }: ToolBarProps) {
   return (
     <div role="toolbar" aria-label="Toolbar" className="gs-toolbar">
@@ -77,7 +81,21 @@ export function ToolBar({
       >
         ?
       </button>
-      <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
+      <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <label className="gs-rocker-label" title={isLive ? 'Live data — click to use cached data' : 'Cached data — click to go live'}>
+          <span className="gs-rocker-text">{isLive ? 'Live' : 'Cached'}</span>
+          <span
+            role="switch"
+            aria-checked={isLive}
+            aria-label="Toggle live data"
+            tabIndex={0}
+            className={`gs-rocker ${isLive ? 'gs-rocker-on' : 'gs-rocker-off'}`}
+            onClick={() => onToggleLive(!isLive)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleLive(!isLive); } }}
+          >
+            <span className="gs-rocker-thumb" />
+          </span>
+        </label>
         <button
           type="button"
           onClick={onAddStarred}

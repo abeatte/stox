@@ -6,6 +6,7 @@ import { useStockData } from '../hooks/useStockData';
 import { useStockProgress } from '../hooks/useStockProgress';
 import { useTableState } from '../hooks/useTableState';
 import { useColumnResize } from '../hooks/useColumnResize';
+import { useLiveMode } from '../hooks/useLiveMode';
 import { computeStockRow } from '../utils/computeStockRow';
 import { generateCsv, buildExportFilename, downloadCsv } from '../utils/csvExporter';
 import { stockDataAdapter } from '../services/stockDataAdapter';
@@ -90,6 +91,8 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
   } = useTableState();
 
   const { widths, onResizeStart, onAutoFit, isResizingRef, tableRef } = useColumnResize();
+
+  const { isLive, setIsLive } = useLiveMode();
 
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -227,7 +230,7 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
   }, [tickers, queryClient]);
 
   return (
-    <div className="gs-ticker-table">
+    <div className={`gs-ticker-table${isLive ? '' : ' gs-stale'}`}>
       <ToolBar
         searchQuery={searchQuery}
         onSearchChange={onSearchChange}
@@ -239,6 +242,8 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
         onHelpOpen={onHelpOpen}
         onAddStarred={handleAddStarred}
         hasStarred={starredTickers.size > 0}
+        isLive={isLive}
+        onToggleLive={setIsLive}
       />
       {refreshError && (
         <div className="gs-refresh-error" role="alert">

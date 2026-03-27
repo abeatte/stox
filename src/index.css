@@ -154,6 +154,71 @@ body {
   gap: 8px;
 }
 
+/* ── Rocker switch ── */
+.gs-rocker-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.gs-rocker-text {
+  font-size: 11px;
+  font-weight: 500;
+  color: #5f6368;
+  min-width: 38px;
+  text-align: right;
+}
+
+.gs-rocker {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 18px;
+  border-radius: 9px;
+  background: #dadce0;
+  transition: background 0.2s;
+  outline: none;
+}
+
+.gs-rocker:focus-visible {
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.4);
+}
+
+.gs-rocker-on {
+  background: #34a853;
+}
+
+.gs-rocker-off {
+  background: #dadce0;
+}
+
+.gs-rocker-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s;
+}
+
+.gs-rocker-on .gs-rocker-thumb {
+  transform: translateX(16px);
+}
+
+/* ── Stale / cached mode ── */
+.gs-stale .gs-table tbody {
+  opacity: 0.55;
+}
+
+.gs-stale .gs-heatmap-container {
+  opacity: 0.55;
+}
+
 /* ── Table wrapper ── */
 .gs-ticker-table {
   display: flex;

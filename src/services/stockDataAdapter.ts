@@ -9,7 +9,7 @@ export type RefreshResult = RawStockData & { error?: string };
  * without affecting consumers.
  */
 export interface StockDataAdapter {
-  fetchStock(ticker: string, signal?: AbortSignal): Promise<RawStockData>;
+  fetchStock(ticker: string, signal?: AbortSignal, cacheOnly?: boolean): Promise<RawStockData>;
   refreshStocks(tickers: string[], signal?: AbortSignal): Promise<RefreshResult[]>;
 }
 
@@ -65,9 +65,9 @@ async function throwResponseError(response: Response, fallbackMessage: string): 
  * The proxy uses Puppeteer to scrape Yahoo Finance quote + balance sheet pages.
  */
 export class YahooFinanceAdapter implements StockDataAdapter {
-  async fetchStock(ticker: string, signal?: AbortSignal): Promise<RawStockData> {
+  async fetchStock(ticker: string, signal?: AbortSignal, cacheOnly?: boolean): Promise<RawStockData> {
     const symbol = ticker.toUpperCase().trim();
-    const url = `http://localhost:3001/api/stock/${encodeURIComponent(symbol)}`;
+    const url = `http://localhost:3001/api/stock/${encodeURIComponent(symbol)}${cacheOnly ? '?cacheOnly=true' : ''}`;
 
     const response = await fetch(url, { signal });
     if (!response.ok) {

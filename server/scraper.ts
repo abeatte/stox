@@ -535,6 +535,16 @@ function releaseScrapeSlot(): void {
 // Exports
 // ---------------------------------------------------------------------------
 
+/**
+ * Return cached data for a ticker without triggering a scrape.
+ * Returns null if nothing is cached (ignores TTL — stale data is fine here).
+ */
+export function getCachedData(ticker: string): TickerResult | null {
+  const symbol = ticker.toUpperCase().trim();
+  const entry = cache.get(symbol);
+  return entry?.data ?? null;
+}
+
 export async function refreshStock(ticker: string): Promise<TickerResult> {
   const symbol = ticker.toUpperCase().trim();
   cache.delete(symbol);

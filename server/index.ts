@@ -8,7 +8,7 @@
  *   POST /api/refresh-stocks  — force-refresh stock data (clears cache)
  */
 import express, { type Request, type Response, type NextFunction } from 'express';
-import { fetchTickerData, refreshStock, closeBrowser, warmUp, saveCache } from './scraper.js';
+import { fetchTickerData, refreshStock, getCachedData, closeBrowser, warmUp, saveCache } from './scraper.js';
 import { toError } from './utils.js';
 import { metrics } from './metrics.js';
 
@@ -61,6 +61,17 @@ app.get('/api/stock/:ticker', async (req: Request<{ ticker: string }>, res: Resp
 
   if (!ticker || !/^[A-Za-z.-]{1,10}$/.test(ticker)) {
     res.status(400).json({ error: 'Invalid ticker symbol' });
+    return;
+  }
+
+  // Cache-only mode: return cached data without triggering a scrape
+  if (req.query.cacheOnly === 'true') {
+    const cached = getCachedData(ticker);
+    if (cached) {
+      res.json(cached);
+    } else {
+      res.status(404).json({ error: `No cached data for ${ticker.toUpperCase()}` });
+    }
     return;
   }
 

@@ -12,6 +12,8 @@ function setup(overrides: Partial<Parameters<typeof ToolBar>[0]> = {}) {
     onRefresh: vi.fn(),
     isRefreshing: false,
     onHelpOpen: vi.fn(),
+    onAddStarred: vi.fn(),
+    hasStarred: false,
     ...overrides,
   };
   render(<ToolBar {...props} />);

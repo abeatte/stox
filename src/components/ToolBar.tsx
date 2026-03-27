@@ -9,6 +9,8 @@ export interface ToolBarProps {
   onRefresh: () => void;
   isRefreshing: boolean;
   onHelpOpen: () => void;
+  onAddStarred: () => void;
+  hasStarred: boolean;
 }
 
 function SearchInput({
@@ -58,6 +60,8 @@ export function ToolBar({
   onRefresh,
   isRefreshing,
   onHelpOpen,
+  onAddStarred,
+  hasStarred,
 }: ToolBarProps) {
   return (
     <div role="toolbar" aria-label="Toolbar" className="gs-toolbar">
@@ -73,7 +77,17 @@ export function ToolBar({
       >
         ?
       </button>
-      <div style={{ marginLeft: 'auto' }}>
+      <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
+        <button
+          type="button"
+          onClick={onAddStarred}
+          disabled={!hasStarred}
+          aria-label="Add starred tickers"
+          title="Add all starred tickers to the list"
+          className="gs-btn-add-starred"
+        >
+          ★ Add Starred
+        </button>
         <button
           type="button"
           onClick={onRefresh}

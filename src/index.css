@@ -111,6 +111,29 @@ body {
   transition: background 0.15s;
 }
 
+.gs-btn-add-starred {
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  background: #fff;
+  color: #202124;
+  transition: background 0.15s;
+}
+
+.gs-btn-add-starred:hover:not(:disabled) {
+  background: #e8eaed;
+}
+
+.gs-btn-add-starred:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .gs-btn-refresh:hover:not(:disabled) {
   background: #e8eaed;
 }

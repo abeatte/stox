@@ -71,6 +71,11 @@ function StockRowWithData({
 export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
   const [tickers, addTicker, removeTicker] = useTickerList();
   const [starredTickers, toggleStar] = useStarredTickers();
+
+  const handleAddStarred = useCallback(() => {
+    if (starredTickers.size === 0) return;
+    addTicker([...starredTickers].join(','));
+  }, [starredTickers, addTicker]);
   const {
     searchQuery,
     onSearchChange,
@@ -228,6 +233,8 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
         onHelpOpen={onHelpOpen}
+        onAddStarred={handleAddStarred}
+        hasStarred={starredTickers.size > 0}
       />
       {refreshError && (
         <div className="gs-refresh-error" role="alert">

@@ -26,6 +26,36 @@ app.options('/{*path}', (_req: Request, res: Response) => { res.sendStatus(204);
 
 app.use(express.json());
 
+app.get('/api/stock/:ticker/progress', (req: Request<{ ticker: string }>, res: Response) => {
+  const { ticker } = req.params;
+  const symbol = ticker.toUpperCase().trim();
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  // Send current state immediately if the process is already running
+  const current = metrics.getProcessInfo(symbol);
+  if (current) {
+    res.write(`data: ${JSON.stringify({ ticker: symbol, stage: current.stage, totalStages: current.totalStages, stageLabel: current.stageLabel })}\n\n`);
+  }
+
+  const unsubscribe = metrics.onProgress((t, stage, totalStages, stageLabel) => {
+    if (t !== symbol) return;
+    res.write(`data: ${JSON.stringify({ ticker: symbol, stage, totalStages, stageLabel })}\n\n`);
+    // Close the stream when the scrape is complete
+    if (stageLabel === 'complete') {
+      res.write('data: [DONE]\n\n');
+      res.end();
+    }
+  });
+
+  req.on('close', () => {
+    unsubscribe();
+  });
+});
+
 app.get('/api/stock/:ticker', async (req: Request<{ ticker: string }>, res: Response) => {
   const { ticker } = req.params;
 

@@ -38,6 +38,8 @@ const defaultProps = {
   onAddTicker: vi.fn(),
   isStarred: false,
   onToggleStar: vi.fn(),
+  progressLabel: null,
+  progressPercent: null,
 };
 
 function renderRow(props = {}) {

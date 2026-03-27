@@ -16,6 +16,8 @@ export interface StockRowProps {
   onAddTicker: (ticker: string) => void;
   isStarred: boolean;
   onToggleStar: (ticker: string) => void;
+  progressLabel: string | null;
+  progressPercent: number | null;
 }
 
 /** Reusable star + remove action cells rendered at the end of every row. */
@@ -72,6 +74,8 @@ export function StockRow({
   onAddTicker,
   isStarred,
   onToggleStar,
+  progressLabel,
+  progressPercent,
 }: StockRowProps) {
   const { position: epsPopover, onMouseEnter: handleEpsMouseEnter, onMouseLeave: handleEpsMouseLeave } = usePopover('top');
   const { position: tickerPopover, onMouseEnter: handleTickerMouseEnter, onMouseLeave: handleTickerMouseLeave } = usePopover('bottom');
@@ -90,6 +94,17 @@ export function StockRow({
 
   // Loading / error placeholder rows share the same shell
   if ((isLoading || isError) && !data) {
+    const loadingContent = isLoading
+      ? (
+        <span className="gs-loading-progress">
+          {progressLabel
+            ? <><span className="gs-progress-label">{progressLabel}</span>{progressPercent != null && <span className="gs-progress-bar"><span className="gs-progress-fill" style={{ width: `${Math.round(progressPercent * 100)}%` }} /></span>}</>
+            : 'Loading…'
+          }
+        </span>
+      )
+      : 'Error loading data';
+
     return (
       <tr>
         <td>{ticker}</td>
@@ -97,7 +112,7 @@ export function StockRow({
           colSpan={totalColumns - 2}
           className={isLoading ? 'gs-cell-loading' : 'gs-cell-error'}
         >
-          {isLoading ? 'Loading…' : 'Error loading data'}
+          {loadingContent}
         </td>
         {actions}
       </tr>

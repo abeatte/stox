@@ -86,6 +86,9 @@ const CLEAR_SCREEN = `${ESC}2J`;
 // Metrics class
 // ---------------------------------------------------------------------------
 
+/** Callback type for progress subscribers. */
+export type ProgressListener = (ticker: string, stage: number, totalStages: number, stageLabel: string) => void;
+
 export class ServerMetrics {
   private running = new Map<string, ProcessInfo>();
   private completed: CompletedProcess[] = [];
@@ -94,6 +97,7 @@ export class ServerMetrics {
   private enabled: boolean;
   private rendering = false;
   private bannerLines: string[] = [];
+  private progressListeners = new Set<ProgressListener>();
 
   constructor(enabled = true) {
     this.enabled = enabled;
@@ -189,7 +193,11 @@ export class ServerMetrics {
 
   updateStage(ticker: string, stage: number, label: string): void {
     const proc = this.running.get(ticker);
-    if (proc) { proc.stage = stage; proc.stageLabel = label; }
+    if (proc) {
+      proc.stage = stage;
+      proc.stageLabel = label;
+      this.emitProgress(ticker, stage, proc.totalStages, label);
+    }
   }
 
   endProcess(ticker: string): void {
@@ -206,6 +214,23 @@ export class ServerMetrics {
   cancelProcess(ticker: string): void {
     this.running.delete(ticker);
     this.render();
+  }
+
+  /** Subscribe to progress updates for all tickers. */
+  onProgress(listener: ProgressListener): () => void {
+    this.progressListeners.add(listener);
+    return () => { this.progressListeners.delete(listener); };
+  }
+
+  private emitProgress(ticker: string, stage: number, totalStages: number, stageLabel: string): void {
+    for (const listener of this.progressListeners) {
+      listener(ticker, stage, totalStages, stageLabel);
+    }
+  }
+
+  /** Get current process info for a ticker, or null if not running. */
+  getProcessInfo(ticker: string): ProcessInfo | null {
+    return this.running.get(ticker) ?? null;
   }
 
   /** Leave alternate screen, restore stdout/stderr, show cursor. */

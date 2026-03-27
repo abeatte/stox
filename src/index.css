@@ -411,6 +411,34 @@ body {
   font-style: italic;
 }
 
+.gs-loading-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gs-progress-label {
+  text-transform: capitalize;
+}
+
+.gs-progress-bar {
+  display: inline-block;
+  width: 80px;
+  height: 6px;
+  background: #3c4043;
+  border-radius: 3px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.gs-progress-fill {
+  display: block;
+  height: 100%;
+  background: #8ab4f8;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
 .gs-cell-error {
   color: #d93025;
 }

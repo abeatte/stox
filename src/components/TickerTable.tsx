@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTickerList } from '../hooks/useTickerList';
 import { useStarredTickers } from '../hooks/useStarredTickers';
 import { useStockData } from '../hooks/useStockData';
+import { useStockProgress } from '../hooks/useStockProgress';
 import { useTableState } from '../hooks/useTableState';
 import { useColumnResize } from '../hooks/useColumnResize';
 import { computeStockRow } from '../utils/computeStockRow';
@@ -37,6 +38,7 @@ function StockRowWithData({
   onToggleStar: (ticker: string) => void;
 }) {
   const { data, isLoading, isError } = useStockData(ticker);
+  const progress = useStockProgress(ticker, isLoading);
 
   const computed = useMemo(() => {
     if (!data) return null;
@@ -59,6 +61,8 @@ function StockRowWithData({
       onAddTicker={onAddTicker}
       isStarred={isStarred}
       onToggleStar={onToggleStar}
+      progressLabel={progress?.stageLabel ?? null}
+      progressPercent={progress ? progress.stage / progress.totalStages : null}
     />
   );
 }

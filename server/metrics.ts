@@ -43,12 +43,13 @@ function stripAnsi(str: string): string {
 // Types
 // ---------------------------------------------------------------------------
 
-interface ProcessInfo {
+export interface ProcessInfo {
   ticker: string;
   startTime: number;
   stage: number;
   totalStages: number;
   stageLabel: string;
+  queued: boolean;
 }
 
 interface CompletedProcess {
@@ -91,6 +92,7 @@ export type ProgressListener = (ticker: string, stage: number, totalStages: numb
 
 export class ServerMetrics {
   private running = new Map<string, ProcessInfo>();
+  private queued = new Set<string>();
   private completed: CompletedProcess[] = [];
   private events: EventEntry[] = [];
   private renderTimer: ReturnType<typeof setInterval> | null = null;
@@ -184,9 +186,22 @@ export class ServerMetrics {
     this.render();
   }
 
+  /** Mark a ticker as waiting for a concurrency slot. */
+  queueProcess(ticker: string, totalStages = 4): void {
+    this.queued.add(ticker);
+    this.emitProgress(ticker, 0, totalStages, 'queued');
+    this.render();
+  }
+
+  /** Remove from queue — called just before the scrape slot is acquired. */
+  dequeueProcess(ticker: string): void {
+    this.queued.delete(ticker);
+  }
+
   startProcess(ticker: string, totalStages = 4): void {
+    this.queued.delete(ticker);
     this.running.set(ticker, {
-      ticker, startTime: Date.now(), stage: 0, totalStages, stageLabel: 'starting',
+      ticker, startTime: Date.now(), stage: 0, totalStages, stageLabel: 'starting', queued: false,
     });
     this.render();
   }
@@ -212,6 +227,7 @@ export class ServerMetrics {
 
   /** Remove a process from the active list without counting it as completed. */
   cancelProcess(ticker: string): void {
+    this.queued.delete(ticker);
     this.running.delete(ticker);
     this.render();
   }
@@ -228,9 +244,17 @@ export class ServerMetrics {
     }
   }
 
-  /** Get current process info for a ticker, or null if not running. */
+  /**
+   * Get current process info for a ticker.
+   * Returns queued state, active scrape state, or null if not in-flight.
+   */
   getProcessInfo(ticker: string): ProcessInfo | null {
-    return this.running.get(ticker) ?? null;
+    const running = this.running.get(ticker);
+    if (running) return running;
+    if (this.queued.has(ticker)) {
+      return { ticker, startTime: Date.now(), stage: 0, totalStages: 4, stageLabel: 'queued', queued: true };
+    }
+    return null;
   }
 
   /** Leave alternate screen, restore stdout/stderr, show cursor. */
@@ -258,9 +282,11 @@ export class ServerMetrics {
     lines.push(color('─'.repeat(52), DIM));
 
     const runCount = this.running.size;
+    const queueCount = this.queued.size;
     const runColor = runCount > 0 ? FG.green : FG.gray;
     lines.push(
       `  ${color('Running:', BOLD, FG.white)} ${color(String(runCount), BOLD, runColor)}` +
+      `  ${color('Queued:', BOLD, FG.white)} ${color(String(queueCount), FG.yellow)}` +
       `  ${color('Completed:', BOLD, FG.white)} ${color(String(this.completed.length), FG.cyan)}`
     );
 
@@ -268,7 +294,7 @@ export class ServerMetrics {
     const avgStr = avgMs > 0 ? `${(avgMs / 1000).toFixed(1)}s` : '—';
     lines.push(`  ${color('Avg time:', BOLD, FG.white)} ${color(avgStr, FG.yellow)}`);
 
-    if (runCount > 0) {
+    if (runCount > 0 || queueCount > 0) {
       lines.push('');
       lines.push(color('  Active processes:', BOLD, FG.magenta));
       const MAX_VISIBLE = 10;
@@ -287,6 +313,10 @@ export class ServerMetrics {
       const hidden = runCount - MAX_VISIBLE;
       if (hidden > 0) {
         lines.push(`    ${color(`… and ${hidden} more`, DIM, FG.gray)}`);
+      }
+      if (queueCount > 0) {
+        const list = [...this.queued].join(', ');
+        lines.push(`    ${color('queued:', DIM, FG.yellow)} ${color(list, FG.yellow)}`);
       }
     }
 

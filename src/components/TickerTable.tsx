@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useTickerList } from '../hooks/useTickerList';
 import { useStarredTickers } from '../hooks/useStarredTickers';
 import { useStockData } from '../hooks/useStockData';
-import { useStockProgress } from '../hooks/useStockProgress';
 import { useTableState } from '../hooks/useTableState';
 import { useColumnResize } from '../hooks/useColumnResize';
 import { useLiveMode } from '../hooks/useLiveMode';
@@ -14,7 +12,7 @@ import { ToolBar } from './ToolBar';
 import { TableHeader } from './TableHeader';
 import { StockRow } from './StockRow';
 import { Heatmap } from './Heatmap';
-import type { StockRowData, RawStockData } from '../types';
+import type { StockRowData } from '../types';
 
 /**
  * Helper component that calls useStockData for a single ticker,
@@ -25,6 +23,7 @@ function StockRowWithData({
   ticker,
   onRemove,
   onData,
+  onRefetchReady,
   allTickers,
   onAddTicker,
   isStarred,
@@ -33,13 +32,16 @@ function StockRowWithData({
   ticker: string;
   onRemove: (ticker: string) => void;
   onData: (ticker: string, row: StockRowData | null) => void;
+  onRefetchReady: (ticker: string, refetch: () => void) => void;
   allTickers: string[];
   onAddTicker: (ticker: string) => void;
   isStarred: boolean;
   onToggleStar: (ticker: string) => void;
 }) {
-  const { data, isLoading, isError } = useStockData(ticker);
-  const progress = useStockProgress(ticker, isLoading);
+  const { data, isLoading, isError, progress, refetch } = useStockData(ticker);
+
+  // Register refetch with parent so handleRefresh can trigger it
+  onRefetchReady(ticker, refetch);
 
   const computed = useMemo(() => {
     if (!data) return null;
@@ -94,7 +96,6 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
 
   const { isLive, setIsLive } = useLiveMode();
 
-  const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
 
@@ -102,6 +103,13 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
   // Using a ref so mutations don't trigger re-renders.
   const rowDataMapRef = useRef(new Map<string, StockRowData | null>());
   const rowDataMap = rowDataMapRef.current;
+
+  // Collect refetch callbacks from child rows so handleRefresh can trigger them
+  const refetchMapRef = useRef(new Map<string, () => void>());
+
+  const handleRefetchReady = useCallback((ticker: string, refetch: () => void) => {
+    refetchMapRef.current.set(ticker, refetch);
+  }, []);
 
   const [hasData, setHasData] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
@@ -213,9 +221,9 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
       if (failed.length > 0) {
         setRefreshError(`Refresh failed for: ${failed.map((r) => r.ticker).join(', ')}`);
       }
-      for (const result of results) {
-        if (result.error) continue;
-        queryClient.setQueryData<RawStockData>(['stock', result.ticker], result);
+      // Re-open the SSE stream for each ticker to get fresh data
+      for (const ticker of tickers) {
+        refetchMapRef.current.get(ticker)?.();
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -227,7 +235,7 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
     } finally {
       setIsRefreshing(false);
     }
-  }, [tickers, queryClient]);
+  }, [tickers]);
 
   return (
     <div className={`gs-ticker-table${isLive ? '' : ' gs-stale'}`}>
@@ -271,6 +279,7 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
                 ticker={ticker}
                 onRemove={removeTicker}
                 onData={handleRowData}
+                onRefetchReady={handleRefetchReady}
                 allTickers={tickers}
                 onAddTicker={addTicker}
                 isStarred={starredTickers.has(ticker)}

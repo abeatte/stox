@@ -4,8 +4,9 @@
  *
  * Usage: npx tsx server/index.ts
  * Endpoints:
- *   GET  /api/stock/:ticker   — fetch (cached) stock data
- *   POST /api/refresh-stocks  — force-refresh stock data (clears cache)
+ *   GET  /api/stock/:ticker/stream — SSE stream: progress events then final data
+ *   GET  /api/stock/:ticker        — fetch (cached) stock data, JSON response
+ *   POST /api/refresh-stocks       — force-refresh stock data (clears cache)
  */
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { fetchTickerData, refreshStock, getCachedData, closeBrowser, warmUp, saveCache } from './scraper.js';
@@ -26,8 +27,25 @@ app.options('/{*path}', (_req: Request, res: Response) => { res.sendStatus(204);
 
 app.use(express.json());
 
-app.get('/api/stock/:ticker/progress', (req: Request<{ ticker: string }>, res: Response) => {
+/**
+ * SSE stream endpoint — single connection per ticker that delivers:
+ *   1. Immediate current state (queued / scraping stage / cached data)
+ *   2. Progress updates as the scrape advances
+ *   3. Final `data` event with the stock payload, then stream closes
+ *
+ * Event shapes:
+ *   { type: 'progress', stage, totalStages, stageLabel }
+ *   { type: 'data', payload: <stock object> }
+ *   { type: 'error', message }
+ */
+app.get('/api/stock/:ticker/stream', (req: Request<{ ticker: string }>, res: Response) => {
   const { ticker } = req.params;
+
+  if (!ticker || !/^[A-Za-z.-]{1,10}$/.test(ticker)) {
+    res.status(400).json({ error: 'Invalid ticker symbol' });
+    return;
+  }
+
   const symbol = ticker.toUpperCase().trim();
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -35,24 +53,72 @@ app.get('/api/stock/:ticker/progress', (req: Request<{ ticker: string }>, res: R
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  // Send current state immediately if the process is already running
-  const current = metrics.getProcessInfo(symbol);
-  if (current) {
-    res.write(`data: ${JSON.stringify({ ticker: symbol, stage: current.stage, totalStages: current.totalStages, stageLabel: current.stageLabel })}\n\n`);
+  const sendProgress = (stage: number, totalStages: number, stageLabel: string): void => {
+    res.write(`data: ${JSON.stringify({ type: 'progress', stage, totalStages, stageLabel })}\n\n`);
+  };
+
+  const sendData = (payload: unknown): void => {
+    res.write(`data: ${JSON.stringify({ type: 'data', payload })}\n\n`);
+    res.end();
+  };
+
+  const sendError = (message: string): void => {
+    res.write(`data: ${JSON.stringify({ type: 'error', message })}\n\n`);
+    res.end();
+  };
+
+  // Check cache first — if we have fresh data, send it immediately with no scrape
+  const cached = getCachedData(symbol);
+  if (cached) {
+    sendData(cached);
+    return;
   }
 
+  let done = false;
+  const abortController = new AbortController();
+
+  // Subscribe to progress BEFORE calling fetchTickerData so we never miss an event
   const unsubscribe = metrics.onProgress((t, stage, totalStages, stageLabel) => {
-    if (t !== symbol) return;
-    res.write(`data: ${JSON.stringify({ ticker: symbol, stage, totalStages, stageLabel })}\n\n`);
-    // Close the stream when the scrape is complete
-    if (stageLabel === 'complete') {
-      res.write('data: [DONE]\n\n');
-      res.end();
-    }
+    if (t !== symbol || done) return;
+    sendProgress(stage, totalStages, stageLabel);
   });
 
+  // Kick off the scrape. fetchTickerData synchronously registers the ticker as
+  // queued in metrics before returning the promise, so getProcessInfo() will
+  // already reflect the queued state by the time we read it below.
+  const fetchPromise = fetchTickerData(symbol, abortController.signal);
+
+  // Send the current state snapshot now that the ticker is registered
+  const current = metrics.getProcessInfo(symbol);
+  if (current) {
+    sendProgress(current.stage, current.totalStages, current.stageLabel);
+  }
+
+  fetchPromise.then(
+    (data) => {
+      if (done) return;
+      done = true;
+      unsubscribe();
+      sendData(data);
+    },
+    (err: unknown) => {
+      if (done) return;
+      done = true;
+      unsubscribe();
+      const error = toError(err);
+      if (error.message !== 'Aborted') {
+        metrics.log(`Stream error for ${symbol}: ${error.message}`);
+        sendError(error.message);
+      } else {
+        res.end();
+      }
+    },
+  );
+
   req.on('close', () => {
+    done = true;
     unsubscribe();
+    abortController.abort();
   });
 });
 

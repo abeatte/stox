@@ -602,7 +602,9 @@ export async function fetchTickerData(ticker: string, requestSignal?: AbortSigna
     entry.refCount++;
     if (entry.graceTimer) { clearTimeout(entry.graceTimer); entry.graceTimer = null; }
   } else {
-    // Start a new scrape
+    // Start a new scrape — register as queued synchronously before the async
+    // scrape begins, so SSE clients that connect immediately see the queued state.
+    metrics.queueProcess(symbol);
     const abort = new AbortController();
     const promise = scrapeTickerData(symbol, abort.signal);
     entry = { promise, abort, refCount: 1, settled: false, graceTimer: null };
@@ -654,6 +656,7 @@ export async function fetchTickerData(ticker: string, requestSignal?: AbortSigna
 async function scrapeTickerData(symbol: string, signal: AbortSignal): Promise<TickerResult> {
 
   await acquireScrapeSlot();
+  metrics.dequeueProcess(symbol);
   if (signal.aborted) { releaseScrapeSlot(); throw new Error('Aborted'); }
 
   metrics.startProcess(symbol);

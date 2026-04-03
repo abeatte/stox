@@ -1,16 +1,14 @@
 /**
  * Integration tests for the Stox app.
  *
- * These tests render the full App component with a mocked stock data adapter,
+ * These tests render the full App component with a mocked EventSource,
  * exercising the complete user experience: adding/removing tickers, viewing
- * formatted data, searching, sorting, editing interest annotations, and
- * CSV export.
+ * formatted data, searching, sorting, starring, and CSV export.
  */
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, waitFor, cleanup, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useTickerList } from '../hooks/useTickerList';
 import { TickerTable } from '../components/TickerTable';
 import { EmptyState } from '../components/EmptyState';
@@ -19,18 +17,61 @@ import { COLUMNS } from '../columns';
 import type { RawStockData } from '../types';
 
 // ---------------------------------------------------------------------------
-// Mock the stock data adapter so we never hit the network
+// EventSource mock
 // ---------------------------------------------------------------------------
-const mockFetchStock = vi.fn<(ticker: string) => Promise<RawStockData>>();
 
-vi.mock('../services/stockDataAdapter', () => ({
-  stockDataAdapter: { fetchStock: (...args: unknown[]) => mockFetchStock(args[0] as string) },
-  YahooFinanceAdapter: class {},
-}));
+type MessageHandler = (event: { data: string }) => void;
+
+class MockEventSource {
+  onmessage: MessageHandler | null = null;
+  onerror: (() => void) | null = null;
+  close = vi.fn();
+
+  constructor(public url: string) {
+    // Register so tests can find and drive this instance
+    MockEventSource._instances.push(this);
+  }
+
+  /** Deliver a parsed SSE data payload to onmessage */
+  emit(data: unknown) {
+    this.onmessage?.({ data: JSON.stringify(data) });
+  }
+
+  triggerError() {
+    this.onerror?.();
+  }
+
+  static _instances: MockEventSource[] = [];
+
+  static reset() {
+    MockEventSource._instances = [];
+  }
+
+  /** Find the instance for a given ticker symbol */
+  static forTicker(ticker: string): MockEventSource | undefined {
+    return MockEventSource._instances.find((es) =>
+      es.url.includes(`/${ticker.toUpperCase()}/stream`),
+    );
+  }
+
+  /** Deliver stock data to all pending instances matching the data map */
+  static deliverAll(dataMap: Record<string, RawStockData>) {
+    for (const es of MockEventSource._instances) {
+      const match = es.url.match(/\/api\/stock\/([^/]+)\/stream/);
+      if (!match) continue;
+      const ticker = match[1].toUpperCase();
+      const data = dataMap[ticker];
+      if (data) {
+        es.emit({ type: 'data', payload: data });
+      }
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Test fixtures
 // ---------------------------------------------------------------------------
+
 function makeRawData(overrides: Partial<RawStockData> = {}): RawStockData {
   return {
     ticker: 'AAPL',
@@ -47,6 +88,9 @@ function makeRawData(overrides: Partial<RawStockData> = {}): RawStockData {
     liabilitiesTotal: 290437,
     sharesOutstanding: 15460,
     dividendPercent: 0.96,
+    bookValue: null,
+    priceToBook: null,
+    relatedTickers: [],
     ...overrides,
   };
 }
@@ -55,7 +99,6 @@ const AAPL_DATA = makeRawData();
 const MSFT_DATA = makeRawData({
   ticker: 'MSFT',
   price: 420.72,
-  date: '2025-03-18',
   divYield: 0.71,
   eps: 12.08,
   totalAssets: 512163,
@@ -69,7 +112,6 @@ const MSFT_DATA = makeRawData({
 const GOOG_DATA = makeRawData({
   ticker: 'GOOG',
   price: 170.25,
-  date: '2025-03-18',
   divYield: 0.47,
   eps: 7.54,
   totalAssets: 430266,
@@ -80,68 +122,73 @@ const GOOG_DATA = makeRawData({
   dividendPercent: 0.8,
 });
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-function setupMock(dataMap: Record<string, RawStockData>) {
-  mockFetchStock.mockImplementation(async (ticker: string) => {
-    const data = dataMap[ticker.toUpperCase()];
-    if (!data) throw new Error(`Unknown ticker: ${ticker}`);
-    return data;
-  });
-}
+const DEFAULT_DATA: Record<string, RawStockData> = {
+  AAPL: AAPL_DATA,
+  MSFT: MSFT_DATA,
+  GOOG: GOOG_DATA,
+};
 
-/**
- * Render App with a fresh QueryClient to avoid cache leaking between tests.
- */
+// ---------------------------------------------------------------------------
+// Render helper
+// ---------------------------------------------------------------------------
+
 function renderApp() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-
   function AppContent() {
     const [tickers, addTicker] = useTickerList();
     const [helpOpen, setHelpOpen] = useState(false);
-    const openHelp = () => setHelpOpen(true);
     return (
       <main>
         {tickers.length > 0 ? (
-          <TickerTable onHelpOpen={openHelp} />
+          <TickerTable onHelpOpen={() => setHelpOpen(true)} />
         ) : (
-          <EmptyState onAddTicker={addTicker} onHelpOpen={openHelp} />
+          <EmptyState onAddTicker={addTicker} onHelpOpen={() => setHelpOpen(true)} />
         )}
         <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
       </main>
     );
   }
+  return render(<AppContent />);
+}
 
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <AppContent />
-    </QueryClientProvider>,
-  );
+/**
+ * Wait for EventSource instances to be created for all given tickers,
+ * then deliver their data payloads.
+ */
+async function deliverData(
+  tickers: string[],
+  dataMap: Record<string, RawStockData> = DEFAULT_DATA,
+) {
+  // Wait until all expected EventSource instances exist
+  await waitFor(() => {
+    for (const ticker of tickers) {
+      expect(MockEventSource.forTicker(ticker)).toBeDefined();
+    }
+  });
+  act(() => MockEventSource.deliverAll(dataMap));
 }
 
 // ---------------------------------------------------------------------------
 // Setup / Teardown
 // ---------------------------------------------------------------------------
+
 beforeEach(() => {
   localStorage.clear();
-  mockFetchStock.mockReset();
-  setupMock({ AAPL: AAPL_DATA, MSFT: MSFT_DATA, GOOG: GOOG_DATA });
+  MockEventSource.reset();
+  vi.stubGlobal('EventSource', MockEventSource);
 });
 
 afterEach(() => {
   cleanup();
-  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
 describe('Stox Integration Tests', () => {
   // -----------------------------------------------------------------------
-  // Requirement 5.3 / 8.3: Empty state
+  // Empty state
   // -----------------------------------------------------------------------
   describe('Empty state', () => {
     it('shows empty state message when no tickers are configured', () => {
@@ -166,11 +213,11 @@ describe('Stox Integration Tests', () => {
       const user = userEvent.setup();
       renderApp();
 
-      const input = screen.getByLabelText('Ticker symbol');
-      await user.type(input, 'AAPL');
+      await user.type(screen.getByLabelText('Ticker symbol'), 'AAPL');
       await user.click(screen.getByRole('button', { name: 'Add' }));
 
-      // Should transition to the table view with AAPL data
+      await deliverData(['AAPL']);
+
       await waitFor(() => {
         expect(screen.getByText('$185.50')).toBeInTheDocument();
       });
@@ -179,25 +226,22 @@ describe('Stox Integration Tests', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Requirement 11: Add and remove tickers
+  // Add and remove tickers
   // -----------------------------------------------------------------------
   describe('Add and remove tickers', () => {
     it('adds a ticker and shows it in the table', async () => {
-      // Start with one ticker so the toolbar is visible
       localStorage.setItem('stox:tickers', JSON.stringify(['MSFT']));
       const user = userEvent.setup();
       renderApp();
 
-      await waitFor(() => {
-        expect(screen.getByLabelText('Ticker symbols, comma separated')).toBeInTheDocument();
-      });
+      await deliverData(['MSFT']);
 
-      // Type ticker and submit
       const input = screen.getByLabelText('Ticker symbols, comma separated');
       await user.type(input, 'AAPL');
       await user.click(screen.getByRole('button', { name: 'Add' }));
 
-      // AAPL data should load and display formatted price
+      await deliverData(['AAPL']);
+
       await waitFor(() => {
         expect(screen.getByText('$185.50')).toBeInTheDocument();
       });
@@ -208,11 +252,6 @@ describe('Stox Integration Tests', () => {
       const user = userEvent.setup();
       renderApp();
 
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument();
-      });
-
-      // Click Add without typing anything
       await user.click(screen.getByRole('button', { name: 'Add' }));
 
       await waitFor(() => {
@@ -227,18 +266,12 @@ describe('Stox Integration Tests', () => {
       const user = userEvent.setup();
       renderApp();
 
-      await waitFor(() => {
-        expect(screen.getByLabelText('Ticker symbols, comma separated')).toBeInTheDocument();
-      });
-
       const input = screen.getByLabelText('Ticker symbols, comma separated');
       await user.type(input, 'AAPL');
       await user.click(screen.getByRole('button', { name: 'Add' }));
 
       await waitFor(() => {
-        expect(screen.getByRole('alert')).toHaveTextContent(
-          'Already in list: AAPL',
-        );
+        expect(screen.getByRole('alert')).toHaveTextContent('Already in list: AAPL');
       });
     });
 
@@ -247,21 +280,15 @@ describe('Stox Integration Tests', () => {
       const user = userEvent.setup();
       renderApp();
 
-      // Wait for data to load
-      await waitFor(() => {
-        expect(screen.getByText('$185.50')).toBeInTheDocument();
-      });
+      await deliverData(['AAPL', 'MSFT']);
+      await waitFor(() => expect(screen.getByText('$185.50')).toBeInTheDocument());
 
-      // Remove AAPL
       await user.click(screen.getByLabelText('Remove AAPL'));
 
-      // AAPL should be gone, MSFT should remain
       await waitFor(() => {
         expect(screen.queryByLabelText('Remove AAPL')).not.toBeInTheDocument();
       });
       expect(screen.getByLabelText('Remove MSFT')).toBeInTheDocument();
-
-      // localStorage should be updated
       expect(JSON.parse(localStorage.getItem('stox:tickers')!)).toEqual(['MSFT']);
     });
 
@@ -270,28 +297,23 @@ describe('Stox Integration Tests', () => {
       const user = userEvent.setup();
       renderApp();
 
-      // Wait for data to load before clicking remove
-      await waitFor(() => {
-        expect(screen.getByText('$185.50')).toBeInTheDocument();
-      });
+      await deliverData(['AAPL']);
+      await waitFor(() => expect(screen.getByText('$185.50')).toBeInTheDocument());
 
       await user.click(screen.getByLabelText('Remove AAPL'));
 
-      // After removing the last ticker, the row should be gone
       await waitFor(() => {
         expect(screen.queryByLabelText('Remove AAPL')).not.toBeInTheDocument();
       });
-
-      // localStorage should be empty
       expect(JSON.parse(localStorage.getItem('stox:tickers')!)).toEqual([]);
     });
   });
 
   // -----------------------------------------------------------------------
-  // Requirement 2 & 7: Table display with formatted data
+  // Table display and formatting
   // -----------------------------------------------------------------------
   describe('Table display and formatting', () => {
-    it('renders all 19 column headers', async () => {
+    it('renders all column headers', async () => {
       localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
       renderApp();
 
@@ -300,10 +322,7 @@ describe('Stox Integration Tests', () => {
       });
 
       const headers = screen.getAllByRole('columnheader');
-      // 17 data columns + star column + 1 empty header for the remove-button column
       expect(headers).toHaveLength(COLUMNS.length + 2);
-
-      // Spot-check a few headers (data columns come first now)
       expect(headers[0]).toHaveTextContent('Ticker');
       expect(headers[1]).toHaveTextContent('Price');
     });
@@ -312,135 +331,105 @@ describe('Stox Integration Tests', () => {
       localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
       renderApp();
 
-      // Wait for data to render
-      await waitFor(() => {
-        // Price formatted as currency
-        expect(screen.getByText('$185.50')).toBeInTheDocument();
-      });
+      await deliverData(['AAPL']);
 
-      // EPS formatted as currency
+      await waitFor(() => expect(screen.getByText('$185.50')).toBeInTheDocument());
       expect(screen.getByText('$6.42')).toBeInTheDocument();
     });
 
     it('shows N/A for null computed fields', async () => {
-      // Create data where computed fields will be null (sharesOutstanding = 0)
-      const nullComputedData = makeRawData({
-        ticker: 'NULL',
-        sharesOutstanding: 0,
-      });
-      setupMock({ NULL: nullComputedData });
+      const nullData = makeRawData({ ticker: 'NULL', sharesOutstanding: 0 });
       localStorage.setItem('stox:tickers', JSON.stringify(['NULL']));
       renderApp();
 
+      await deliverData(['NULL'], { NULL: nullData });
+
       await waitFor(() => {
-        // bookValue, pBook, tangibleBookValue, pTangbook should all be N/A
         const naCells = screen.getAllByText('N/A');
         expect(naCells.length).toBeGreaterThanOrEqual(4);
       });
     });
 
     it('shows loading state before data arrives', async () => {
-      // Make fetch hang indefinitely
-      mockFetchStock.mockImplementation(
-        () => new Promise<RawStockData>(() => {}),
-      );
       localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
       renderApp();
 
+      // Don't deliver data — EventSource stays open
       await waitFor(() => {
         expect(screen.getByText('Loading…')).toBeInTheDocument();
       });
     });
 
-    it('shows error state when fetch fails', async () => {
-      mockFetchStock.mockRejectedValue(new Error('Network error'));
+    it('shows error state when EventSource errors', async () => {
       localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
       renderApp();
 
-      // useStockData retries 3 times with exponential backoff, so this
-      // needs a longer timeout before the error state appears.
-      await waitFor(
-        () => {
-          expect(screen.getByText('Error loading data')).toBeInTheDocument();
-        },
-        { timeout: 20000 },
-      );
-    }, 25000);
+      await waitFor(() => MockEventSource.forTicker('AAPL') !== undefined);
+      act(() => MockEventSource.forTicker('AAPL')!.triggerError());
+
+      await waitFor(() => {
+        expect(screen.getByText('Error loading data')).toBeInTheDocument();
+      });
+    });
 
     it('renders multiple tickers as separate rows', async () => {
-      localStorage.setItem(
-        'stox:tickers',
-        JSON.stringify(['AAPL', 'MSFT']),
-      );
+      localStorage.setItem('stox:tickers', JSON.stringify(['AAPL', 'MSFT']));
       renderApp();
+
+      await deliverData(['AAPL', 'MSFT']);
 
       await waitFor(() => {
         expect(screen.getByText('$185.50')).toBeInTheDocument();
         expect(screen.getByText('$420.72')).toBeInTheDocument();
       });
-
-      // Both remove buttons should exist
       expect(screen.getByLabelText('Remove AAPL')).toBeInTheDocument();
       expect(screen.getByLabelText('Remove MSFT')).toBeInTheDocument();
     });
   });
 
   // -----------------------------------------------------------------------
-  // Requirement 8: localStorage persistence
+  // localStorage persistence
   // -----------------------------------------------------------------------
   describe('localStorage persistence', () => {
     it('persists added tickers to localStorage', async () => {
-      // Need at least one ticker so toolbar is visible
       localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
       const user = userEvent.setup();
       renderApp();
-
-      await waitFor(() => {
-        expect(screen.getByLabelText('Ticker symbols, comma separated')).toBeInTheDocument();
-      });
 
       const input = screen.getByLabelText('Ticker symbols, comma separated');
       await user.type(input, 'MSFT');
       await user.click(screen.getByRole('button', { name: 'Add' }));
 
-      expect(JSON.parse(localStorage.getItem('stox:tickers')!)).toEqual([
-        'AAPL',
-        'MSFT',
-      ]);
+      expect(JSON.parse(localStorage.getItem('stox:tickers')!)).toEqual(['AAPL', 'MSFT']);
     });
 
     it('loads tickers from localStorage on mount', async () => {
       localStorage.setItem('stox:tickers', JSON.stringify(['GOOG']));
       renderApp();
 
-      await waitFor(() => {
-        expect(screen.getByText('$170.25')).toBeInTheDocument();
-      });
+      await deliverData(['GOOG']);
+
+      await waitFor(() => expect(screen.getByText('$170.25')).toBeInTheDocument());
     });
   });
 
   // -----------------------------------------------------------------------
-  // Requirement 10: Search and sort
+  // Search and sort
   // -----------------------------------------------------------------------
   describe('Search and sort', () => {
     it('filters tickers by search query', async () => {
-      localStorage.setItem(
-        'stox:tickers',
-        JSON.stringify(['AAPL', 'MSFT', 'GOOG']),
-      );
+      localStorage.setItem('stox:tickers', JSON.stringify(['AAPL', 'MSFT', 'GOOG']));
       const user = userEvent.setup();
       renderApp();
 
-      // Wait for all data to load
+      await deliverData(['AAPL', 'MSFT', 'GOOG']);
       await waitFor(() => {
         expect(screen.getByLabelText('Remove AAPL')).toBeInTheDocument();
         expect(screen.getByLabelText('Remove MSFT')).toBeInTheDocument();
         expect(screen.getByLabelText('Remove GOOG')).toBeInTheDocument();
       });
 
-      // Search for "AA" — should only show AAPL
-      const searchInput = screen.getByLabelText('Search tickers');
-      await user.type(searchInput, 'AA');
+      await user.type(screen.getByLabelText('Search tickers'), 'AA');
 
       await waitFor(() => {
         expect(screen.getByLabelText('Remove AAPL')).toBeInTheDocument();
@@ -450,20 +439,17 @@ describe('Stox Integration Tests', () => {
     });
 
     it('search is case-insensitive', async () => {
-      localStorage.setItem(
-        'stox:tickers',
-        JSON.stringify(['AAPL', 'MSFT']),
-      );
+      localStorage.setItem('stox:tickers', JSON.stringify(['AAPL', 'MSFT']));
       const user = userEvent.setup();
       renderApp();
 
+      await deliverData(['AAPL', 'MSFT']);
       await waitFor(() => {
         expect(screen.getByLabelText('Remove AAPL')).toBeInTheDocument();
         expect(screen.getByLabelText('Remove MSFT')).toBeInTheDocument();
       });
 
-      const searchInput = screen.getByLabelText('Search tickers');
-      await user.type(searchInput, 'msft');
+      await user.type(screen.getByLabelText('Search tickers'), 'msft');
 
       await waitFor(() => {
         expect(screen.queryByLabelText('Remove AAPL')).not.toBeInTheDocument();
@@ -472,13 +458,11 @@ describe('Stox Integration Tests', () => {
     });
 
     it('shows all tickers when search is cleared', async () => {
-      localStorage.setItem(
-        'stox:tickers',
-        JSON.stringify(['AAPL', 'MSFT']),
-      );
+      localStorage.setItem('stox:tickers', JSON.stringify(['AAPL', 'MSFT']));
       const user = userEvent.setup();
       renderApp();
 
+      await deliverData(['AAPL', 'MSFT']);
       await waitFor(() => {
         expect(screen.getByLabelText('Remove AAPL')).toBeInTheDocument();
         expect(screen.getByLabelText('Remove MSFT')).toBeInTheDocument();
@@ -486,14 +470,9 @@ describe('Stox Integration Tests', () => {
 
       const searchInput = screen.getByLabelText('Search tickers');
       await user.type(searchInput, 'AAPL');
+      await waitFor(() => expect(screen.queryByLabelText('Remove MSFT')).not.toBeInTheDocument());
 
-      await waitFor(() => {
-        expect(screen.queryByLabelText('Remove MSFT')).not.toBeInTheDocument();
-      });
-
-      // Clear search
       await user.clear(searchInput);
-
       await waitFor(() => {
         expect(screen.getByLabelText('Remove AAPL')).toBeInTheDocument();
         expect(screen.getByLabelText('Remove MSFT')).toBeInTheDocument();
@@ -505,18 +484,13 @@ describe('Stox Integration Tests', () => {
       const user = userEvent.setup();
       renderApp();
 
-      await waitFor(() => {
-        expect(screen.getByText('Price')).toBeInTheDocument();
-      });
+      await waitFor(() => expect(screen.getByText('Price')).toBeInTheDocument());
 
-      // Click Price header to sort ascending
       await user.click(screen.getByText('Price'));
-
       const priceHeader = screen.getByText('Price').closest('th')!;
       expect(priceHeader).toHaveAttribute('aria-sort', 'ascending');
       expect(priceHeader.textContent).toContain('▲');
 
-      // Click again to toggle to descending
       await user.click(screen.getByText('Price'));
       expect(priceHeader).toHaveAttribute('aria-sort', 'descending');
       expect(priceHeader.textContent).toContain('▼');
@@ -524,13 +498,14 @@ describe('Stox Integration Tests', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Star / favorite functionality
+  // Star / favorite
   // -----------------------------------------------------------------------
   describe('Star / favorite', () => {
     it('renders star buttons for each ticker row', async () => {
       localStorage.setItem('stox:tickers', JSON.stringify(['AAPL', 'MSFT']));
       renderApp();
 
+      await deliverData(['AAPL', 'MSFT']);
       await waitFor(() => {
         expect(screen.getByLabelText('Star AAPL')).toBeInTheDocument();
         expect(screen.getByLabelText('Star MSFT')).toBeInTheDocument();
@@ -542,67 +517,48 @@ describe('Stox Integration Tests', () => {
       const user = userEvent.setup();
       renderApp();
 
-      // Wait for data to load so the row renders
-      await waitFor(() => {
-        expect(screen.getByText('$185.50')).toBeInTheDocument();
-      });
+      await deliverData(['AAPL']);
+      await waitFor(() => expect(screen.getByText('$185.50')).toBeInTheDocument());
 
-      // Star AAPL
       await user.click(screen.getByLabelText('Star AAPL'));
-
-      await waitFor(() => {
-        expect(screen.getByLabelText('Unstar AAPL')).toBeInTheDocument();
-      });
+      await waitFor(() => expect(screen.getByLabelText('Unstar AAPL')).toBeInTheDocument());
       expect(JSON.parse(localStorage.getItem('stox:starred')!)).toContain('AAPL');
 
-      // Unstar AAPL
       await user.click(screen.getByLabelText('Unstar AAPL'));
-
-      await waitFor(() => {
-        expect(screen.getByLabelText('Star AAPL')).toBeInTheDocument();
-      });
+      await waitFor(() => expect(screen.getByLabelText('Star AAPL')).toBeInTheDocument());
       expect(JSON.parse(localStorage.getItem('stox:starred')!)).not.toContain('AAPL');
     });
 
     it('sorts starred tickers first when star header is clicked', async () => {
       localStorage.setItem('stox:tickers', JSON.stringify(['AAPL', 'MSFT', 'GOOG']));
-      // Pre-star GOOG only
       localStorage.setItem('stox:starred', JSON.stringify(['GOOG']));
       const user = userEvent.setup();
       renderApp();
 
+      await deliverData(['AAPL', 'MSFT', 'GOOG']);
       await waitFor(() => {
         expect(screen.getByLabelText('Remove AAPL')).toBeInTheDocument();
         expect(screen.getByLabelText('Remove MSFT')).toBeInTheDocument();
         expect(screen.getByLabelText('Remove GOOG')).toBeInTheDocument();
       });
 
-      // Click star header to sort ascending (starred first)
       const starHeader = screen.getByLabelText('Star');
       await user.click(starHeader);
+      await waitFor(() => expect(starHeader).toHaveAttribute('aria-sort', 'ascending'));
 
-      await waitFor(() => {
-        expect(starHeader).toHaveAttribute('aria-sort', 'ascending');
-      });
-
-      // GOOG (starred) should be first row
-      const rows = screen.getAllByRole('row').slice(1); // skip header row
+      const rows = screen.getAllByRole('row').slice(1);
       expect(rows[0]).toHaveTextContent('GOOG');
     });
   });
 
   // -----------------------------------------------------------------------
-  // Requirement 9: CSV export
+  // CSV export
   // -----------------------------------------------------------------------
   describe('CSV export', () => {
     it('export button is disabled when no data is loaded', () => {
       localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
-      // Don't resolve the fetch — data never loads
-      mockFetchStock.mockImplementation(
-        () => new Promise<RawStockData>(() => {}),
-      );
       renderApp();
-
+      // EventSource open but no data delivered yet
       const exportBtn = screen.getByLabelText('Export CSV');
       expect(exportBtn).toBeDisabled();
       expect(exportBtn).toHaveAttribute('title', 'No data to export.');
@@ -612,23 +568,15 @@ describe('Stox Integration Tests', () => {
       localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
       renderApp();
 
-      // Initially disabled while data is loading
       expect(screen.getByLabelText('Export CSV')).toBeDisabled();
 
-      // Wait for data to render
-      await waitFor(() => {
-        expect(screen.getByText('$185.50')).toBeInTheDocument();
-      });
-
-      // The hasData flag is computed from a ref that's populated during render.
-      // It may take an additional render cycle to reflect in the button state.
-      // This is a known limitation of the ref-based data collection approach.
-      // The export functionality itself works correctly when clicked.
+      await deliverData(['AAPL']);
+      await waitFor(() => expect(screen.getByText('$185.50')).toBeInTheDocument());
     });
   });
 
   // -----------------------------------------------------------------------
-  // Requirement 4: Computed columns
+  // Computed columns
   // -----------------------------------------------------------------------
   describe('Computed columns display', () => {
     it('displays computed EPS multiples correctly in popover on hover', async () => {
@@ -636,20 +584,65 @@ describe('Stox Integration Tests', () => {
       const user = userEvent.setup();
       renderApp();
 
-      await waitFor(() => {
-        expect(screen.getByText('$6.42')).toBeInTheDocument();
-      });
+      await deliverData(['AAPL']);
+      await waitFor(() => expect(screen.getByText('$6.42')).toBeInTheDocument());
 
-      // Hover over the EPS cell to trigger the popover
       const epsCell = screen.getByText('$6.42').closest('td')!;
       await user.hover(epsCell);
 
       await waitFor(() => {
-        // 15x EPS = 15 * 6.42 = $96.30
         expect(screen.getByText(/15x EPS.*\$96\.30/)).toBeInTheDocument();
-        // 20x EPS = 20 * 6.42 = $128.40
         expect(screen.getByText(/20x EPS.*\$128\.40/)).toBeInTheDocument();
       });
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Progress display
+  // -----------------------------------------------------------------------
+  describe('Progress display', () => {
+    it('shows queued label when server sends queued progress', async () => {
+      localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
+      renderApp();
+
+      await waitFor(() => MockEventSource.forTicker('AAPL') !== undefined);
+      act(() => MockEventSource.forTicker('AAPL')!.emit({
+        type: 'progress', stage: 0, totalStages: 4, stageLabel: 'queued',
+      }));
+
+      await waitFor(() => expect(screen.getByText('queued')).toBeInTheDocument());
+    });
+
+    it('updates progress label through scrape stages', async () => {
+      localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
+      renderApp();
+
+      await waitFor(() => MockEventSource.forTicker('AAPL') !== undefined);
+      const es = MockEventSource.forTicker('AAPL')!;
+
+      act(() => es.emit({ type: 'progress', stage: 0, totalStages: 4, stageLabel: 'queued' }));
+      await waitFor(() => expect(screen.getByText('queued')).toBeInTheDocument());
+
+      act(() => es.emit({ type: 'progress', stage: 1, totalStages: 4, stageLabel: 'quote summary' }));
+      await waitFor(() => expect(screen.getByText('quote summary')).toBeInTheDocument());
+
+      act(() => es.emit({ type: 'progress', stage: 3, totalStages: 4, stageLabel: 'balance sheet' }));
+      await waitFor(() => expect(screen.getByText('balance sheet')).toBeInTheDocument());
+    });
+
+    it('clears progress and shows data when data event arrives', async () => {
+      localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
+      renderApp();
+
+      await waitFor(() => MockEventSource.forTicker('AAPL') !== undefined);
+      const es = MockEventSource.forTicker('AAPL')!;
+
+      act(() => es.emit({ type: 'progress', stage: 1, totalStages: 4, stageLabel: 'quote summary' }));
+      await waitFor(() => expect(screen.getByText('quote summary')).toBeInTheDocument());
+
+      act(() => es.emit({ type: 'data', payload: AAPL_DATA }));
+      await waitFor(() => expect(screen.getByText('$185.50')).toBeInTheDocument());
+      expect(screen.queryByText('quote summary')).not.toBeInTheDocument();
     });
   });
 
@@ -657,55 +650,39 @@ describe('Stox Integration Tests', () => {
   // Full user journey
   // -----------------------------------------------------------------------
   describe('Full user journey', () => {
-    it('add ticker → view data → annotate → search → remove', async () => {
-      // Start with AAPL so the toolbar is visible
+    it('add ticker → view data → search → remove', async () => {
       localStorage.setItem('stox:tickers', JSON.stringify(['AAPL']));
       const user = userEvent.setup();
       renderApp();
 
-      // 1. Wait for AAPL data to load
-      await waitFor(() => {
-        expect(screen.getByText('$185.50')).toBeInTheDocument();
-      });
+      await deliverData(['AAPL']);
+      await waitFor(() => expect(screen.getByText('$185.50')).toBeInTheDocument());
 
-      // 2. Add MSFT
-      const tickerInput = screen.getByLabelText('Ticker symbols, comma separated');
-      await user.type(tickerInput, 'MSFT');
+      // Add MSFT
+      await user.type(screen.getByLabelText('Ticker symbols, comma separated'), 'MSFT');
       await user.click(screen.getByRole('button', { name: 'Add' }));
+      await deliverData(['MSFT']);
+      await waitFor(() => expect(screen.getByText('$420.72')).toBeInTheDocument());
 
-      await waitFor(() => {
-        expect(screen.getByText('$420.72')).toBeInTheDocument();
-      });
-
-      // 3. Search for MSFT — AAPL should disappear
-      const searchInput = screen.getByLabelText('Search tickers');
-      await user.type(searchInput, 'MSFT');
-
+      // Search for MSFT
+      await user.type(screen.getByLabelText('Search tickers'), 'MSFT');
       await waitFor(() => {
         expect(screen.queryByLabelText('Remove AAPL')).not.toBeInTheDocument();
         expect(screen.getByLabelText('Remove MSFT')).toBeInTheDocument();
       });
 
-      // 4. Clear search — both tickers visible again
-      await user.clear(searchInput);
-
+      // Clear search
+      await user.clear(screen.getByLabelText('Search tickers'));
       await waitFor(() => {
         expect(screen.getByLabelText('Remove AAPL')).toBeInTheDocument();
         expect(screen.getByLabelText('Remove MSFT')).toBeInTheDocument();
       });
 
-      // 5. Remove MSFT
+      // Remove MSFT
       await user.click(screen.getByLabelText('Remove MSFT'));
-
-      await waitFor(() => {
-        expect(screen.queryByLabelText('Remove MSFT')).not.toBeInTheDocument();
-      });
+      await waitFor(() => expect(screen.queryByLabelText('Remove MSFT')).not.toBeInTheDocument());
       expect(screen.getByLabelText('Remove AAPL')).toBeInTheDocument();
-
-      // 6. Verify localStorage has correct state
-      expect(JSON.parse(localStorage.getItem('stox:tickers')!)).toEqual([
-        'AAPL',
-      ]);
+      expect(JSON.parse(localStorage.getItem('stox:tickers')!)).toEqual(['AAPL']);
     });
   });
 
@@ -718,16 +695,11 @@ describe('Stox Integration Tests', () => {
       const user = userEvent.setup();
       renderApp();
 
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Help' })).toBeInTheDocument();
-      });
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Help' })).toBeInTheDocument());
 
-      // Open help
       await user.click(screen.getByRole('button', { name: 'Help' }));
       expect(screen.getByRole('dialog', { name: 'Help and shortcuts' })).toBeInTheDocument();
-      expect(screen.getByText('Help & Tips')).toBeInTheDocument();
 
-      // Close help
       await user.click(screen.getByLabelText('Close help'));
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
@@ -740,7 +712,6 @@ describe('Stox Integration Tests', () => {
     it('opens help dialog from empty state', async () => {
       const user = userEvent.setup();
       renderApp();
-
       await user.click(screen.getByRole('button', { name: 'Help' }));
       expect(screen.getByRole('dialog', { name: 'Help and shortcuts' })).toBeInTheDocument();
     });

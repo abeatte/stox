@@ -184,7 +184,7 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
     }
 
     return result;
-  }, [filteredTickers, sortCriteria, sortRows, rowDataMap, starredTickers]);
+  }, [filteredTickers, sortCriteria, sortRows, rowDataMap, starredTickers, dataVersion]);
 
   // Export handler
   const handleExport = useCallback(() => {

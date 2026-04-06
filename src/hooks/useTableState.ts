@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { ColumnKey, SortKey, SortCriterion, StockRowData, INTRINSIC_COLUMNS } from '../types';
 import { COLUMNS } from '../columns';
 import { getCellHighlight } from '../utils/cellHighlight';
+import { getSortCriteria, setSortCriteria as persistSortCriteria } from '../services/localStorageService';
 
 /**
  * Filters ticker symbols by case-insensitive substring match on the query.
@@ -98,7 +99,7 @@ export function sortRows(
  */
 export function useTableState() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortCriteria, setSortCriteria] = useState<SortCriterion[]>([]);
+  const [sortCriteria, setSortCriteria] = useState<SortCriterion[]>(getSortCriteria);
 
   const onSort = useCallback(
     (col: SortKey, multi = false) => {
@@ -107,37 +108,38 @@ export function useTableState() {
 
         const hasIntrinsic = INTRINSIC_COLUMNS.has(col);
 
+        let next: SortCriterion[];
+
         if (multi) {
           // Shift+click: add, toggle, or remove from the list
           if (idx === -1) {
-            return [...prev, { column: col, direction: 'asc' }];
-          }
-          if (prev[idx].direction === 'asc') {
-            const next = [...prev];
+            next = [...prev, { column: col, direction: 'asc' }];
+          } else if (prev[idx].direction === 'asc') {
+            next = [...prev];
             next[idx] = { column: col, direction: 'desc' };
-            return next;
-          }
-          if (prev[idx].direction === 'desc' && hasIntrinsic) {
-            const next = [...prev];
+          } else if (prev[idx].direction === 'desc' && hasIntrinsic) {
+            next = [...prev];
             next[idx] = { column: col, direction: 'intr' };
-            return next;
+          } else {
+            next = prev.filter((_, i) => i !== idx);
           }
-          // Remove this criterion
-          return prev.filter((_, i) => i !== idx);
+        } else {
+          // Plain click: single-column sort cycle
+          if (idx !== -1 && prev.length === 1) {
+            if (prev[0].direction === 'asc') {
+              next = [{ column: col, direction: 'desc' }];
+            } else if (prev[0].direction === 'desc' && hasIntrinsic) {
+              next = [{ column: col, direction: 'intr' }];
+            } else {
+              next = [];
+            }
+          } else {
+            next = [{ column: col, direction: 'asc' }];
+          }
         }
 
-        // Plain click: single-column sort cycle
-        if (idx !== -1 && prev.length === 1) {
-          if (prev[0].direction === 'asc') {
-            return [{ column: col, direction: 'desc' }];
-          }
-          if (prev[0].direction === 'desc' && hasIntrinsic) {
-            return [{ column: col, direction: 'intr' }];
-          }
-          // Clear
-          return [];
-        }
-        return [{ column: col, direction: 'asc' }];
+        persistSortCriteria(next);
+        return next;
       });
     },
     [],

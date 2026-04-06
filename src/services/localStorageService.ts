@@ -1,9 +1,11 @@
+import type { SortCriterion } from '../types';
+
 const TICKER_KEY = 'stox:tickers';
 const STARRED_KEY = 'stox:starred';
 const LIVE_MODE_KEY = 'stox:liveMode';
+const SORT_CRITERIA_KEY = 'stox:sortCriteria';
 
-// In-memory fallback when localStorage is unavailable
-const memoryStore = new Map<string, string[]>();
+const memoryStore = new Map<string, string>();
 
 function isLocalStorageAvailable(): boolean {
   try {
@@ -18,13 +20,10 @@ function isLocalStorageAvailable(): boolean {
 
 const storageAvailable = isLocalStorageAvailable();
 
-/**
- * Generic getter for a JSON string-array stored under `key`.
- * Falls back to in-memory store when localStorage is unavailable.
- */
 function getList(key: string): string[] {
   if (!storageAvailable) {
-    return [...(memoryStore.get(key) ?? [])];
+    const raw = memoryStore.get(key);
+    return raw ? (JSON.parse(raw) as string[]) : [];
   }
   try {
     const raw = localStorage.getItem(key);
@@ -37,19 +36,16 @@ function getList(key: string): string[] {
   }
 }
 
-/**
- * Generic setter for a JSON string-array stored under `key`.
- * Falls back to in-memory store when localStorage is unavailable.
- */
 function setList(key: string, items: string[]): void {
+  const serialized = JSON.stringify(items);
   if (!storageAvailable) {
-    memoryStore.set(key, [...items]);
+    memoryStore.set(key, serialized);
     return;
   }
   try {
-    localStorage.setItem(key, JSON.stringify(items));
+    localStorage.setItem(key, serialized);
   } catch {
-    memoryStore.set(key, [...items]);
+    memoryStore.set(key, serialized);
   }
 }
 
@@ -69,8 +65,37 @@ export function setStarredTickers(starred: string[]): void {
   setList(STARRED_KEY, starred);
 }
 
+export function getSortCriteria(): SortCriterion[] {
+  if (!storageAvailable) {
+    const raw = memoryStore.get(SORT_CRITERIA_KEY);
+    return raw ? (JSON.parse(raw) as SortCriterion[]) : [];
+  }
+  try {
+    const raw = localStorage.getItem(SORT_CRITERIA_KEY);
+    if (raw === null) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed as SortCriterion[];
+  } catch {
+    return [];
+  }
+}
+
+export function setSortCriteria(criteria: SortCriterion[]): void {
+  const serialized = JSON.stringify(criteria);
+  if (!storageAvailable) {
+    memoryStore.set(SORT_CRITERIA_KEY, serialized);
+    return;
+  }
+  try {
+    localStorage.setItem(SORT_CRITERIA_KEY, serialized);
+  } catch {
+    memoryStore.set(SORT_CRITERIA_KEY, serialized);
+  }
+}
+
 export function getLiveMode(): boolean {
-  if (!storageAvailable) return memoryStore.get(LIVE_MODE_KEY)?.[0] !== 'false';
+  if (!storageAvailable) return memoryStore.get(LIVE_MODE_KEY) !== 'false';
   try {
     return localStorage.getItem(LIVE_MODE_KEY) !== 'false';
   } catch {
@@ -79,13 +104,14 @@ export function getLiveMode(): boolean {
 }
 
 export function setLiveMode(live: boolean): void {
+  const value = String(live);
   if (!storageAvailable) {
-    memoryStore.set(LIVE_MODE_KEY, [String(live)]);
+    memoryStore.set(LIVE_MODE_KEY, value);
     return;
   }
   try {
-    localStorage.setItem(LIVE_MODE_KEY, String(live));
+    localStorage.setItem(LIVE_MODE_KEY, value);
   } catch {
-    memoryStore.set(LIVE_MODE_KEY, [String(live)]);
+    memoryStore.set(LIVE_MODE_KEY, value);
   }
 }

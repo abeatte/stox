@@ -372,4 +372,4 @@ export class ServerMetrics {
   }
 }
 
-export const metrics = new ServerMetrics();
+export const metrics = new ServerMetrics(process.env['STOX_NO_DASHBOARD'] !== 'true');

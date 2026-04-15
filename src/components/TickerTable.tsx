@@ -143,15 +143,26 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
     [tickers, searchQuery, filterTickers],
   );
 
+  // Prioritize starred tickers so their SSE streams are opened first.
+  // This list drives the render order of StockRowWithData, which controls fetch order.
+  const prioritizedTickers = useMemo(
+    () => [...filteredTickers].sort((a, b) => {
+      const aStarred = starredTickers.has(a) ? 0 : 1;
+      const bStarred = starredTickers.has(b) ? 0 : 1;
+      return aStarred - bStarred;
+    }),
+    [filteredTickers, starredTickers],
+  );
+
   // Build sorted ticker order using collected row data.
   // Tickers still loading / errored are appended at the bottom.
   const sortedTickers = useMemo(() => {
-    if (sortCriteria.length === 0) return filteredTickers;
+    if (sortCriteria.length === 0) return prioritizedTickers;
 
     const withData: StockRowData[] = [];
     const withoutData: string[] = [];
 
-    for (const t of filteredTickers) {
+    for (const t of prioritizedTickers) {
       const row = rowDataMap.get(t);
       if (row) {
         withData.push(row);
@@ -184,7 +195,7 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
     }
 
     return result;
-  }, [filteredTickers, sortCriteria, sortRows, rowDataMap, starredTickers, dataVersion]);
+  }, [prioritizedTickers, sortCriteria, sortRows, rowDataMap, starredTickers, dataVersion]);
 
   // Export handler
   const handleExport = useCallback(() => {

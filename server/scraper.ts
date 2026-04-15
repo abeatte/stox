@@ -94,7 +94,7 @@ interface QuoteSummaryResult {
 // ---------------------------------------------------------------------------
 
 const cache = new Map<string, CacheEntry>();
-const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+const CACHE_TTL = 72 * 60 * 60 * 1000; // 72 hours
 
 function loadCache(): void {
   try {

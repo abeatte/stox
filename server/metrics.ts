@@ -50,12 +50,15 @@ export interface ProcessInfo {
   totalStages: number;
   stageLabel: string;
   queued: boolean;
+  stageStartTime: number;
+  stageDurations: number[];
 }
 
 interface CompletedProcess {
   ticker: string;
   duration: number;
   timestamp: number;
+  stageDurations: number[];
 }
 
 interface EventEntry {
@@ -202,6 +205,7 @@ export class ServerMetrics {
     this.queued.delete(ticker);
     this.running.set(ticker, {
       ticker, startTime: Date.now(), stage: 0, totalStages, stageLabel: 'starting', queued: false,
+      stageStartTime: Date.now(), stageDurations: [],
     });
     this.render();
   }
@@ -209,8 +213,14 @@ export class ServerMetrics {
   updateStage(ticker: string, stage: number, label: string): void {
     const proc = this.running.get(ticker);
     if (proc) {
+      // Record how long the previous stage took
+      const stageDuration = Date.now() - proc.stageStartTime;
+      if (proc.stage > 0 || proc.stageLabel !== 'starting') {
+        proc.stageDurations[proc.stage] = stageDuration;
+      }
       proc.stage = stage;
       proc.stageLabel = label;
+      proc.stageStartTime = Date.now();
       this.emitProgress(ticker, stage, proc.totalStages, label);
     }
   }
@@ -218,7 +228,14 @@ export class ServerMetrics {
   endProcess(ticker: string): void {
     const proc = this.running.get(ticker);
     if (proc) {
-      this.completed.push({ ticker, duration: Date.now() - proc.startTime, timestamp: Date.now() });
+      // Record the final stage duration
+      proc.stageDurations[proc.stage] = Date.now() - proc.stageStartTime;
+      this.completed.push({
+        ticker,
+        duration: Date.now() - proc.startTime,
+        timestamp: Date.now(),
+        stageDurations: [...proc.stageDurations],
+      });
       if (this.completed.length > HISTORY_LIMIT) this.completed = this.completed.slice(-HISTORY_LIMIT);
       this.running.delete(ticker);
     }
@@ -252,7 +269,7 @@ export class ServerMetrics {
     const running = this.running.get(ticker);
     if (running) return running;
     if (this.queued.has(ticker)) {
-      return { ticker, startTime: Date.now(), stage: 0, totalStages: 4, stageLabel: 'queued', queued: true };
+      return { ticker, startTime: Date.now(), stage: 0, totalStages: 4, stageLabel: 'queued', queued: true, stageStartTime: Date.now(), stageDurations: [] };
     }
     return null;
   }
@@ -350,6 +367,21 @@ export class ServerMetrics {
 
     lines.push(color('─'.repeat(52), DIM));
 
+    const STAGE_LABELS = ['quote summary', 'real-time price', 'balance sheet', 'profile'];
+    const stageAvgs = this.averageStageDurations();
+    if (stageAvgs.length > 0) {
+      lines.push('');
+      lines.push(color('  Avg stage durations:', BOLD, FG.white));
+      for (let i = 0; i < STAGE_LABELS.length; i++) {
+        const avg = stageAvgs[i];
+        const avgStr = avg != null ? `${(avg / 1000).toFixed(1)}s` : '—';
+        const avgColor = avg == null ? FG.gray : avg < 10000 ? FG.green : avg < 25000 ? FG.yellow : FG.red;
+        lines.push(
+          `    ${color(`${String(i + 1)}.`, DIM)} ${color(STAGE_LABELS[i].padEnd(18), FG.white)} ${color(avgStr, avgColor)}`
+        );
+      }
+    }
+
     this.rendering = true;
     // Jump to top-left and clear, then draw — absolute positioning, no scrollback
     rawWrite(CURSOR_HOME + CLEAR_SCREEN + lines.join('\n') + '\n');
@@ -369,6 +401,18 @@ export class ServerMetrics {
     if (this.completed.length === 0) return 0;
     const total = this.completed.reduce((sum, c) => sum + c.duration, 0);
     return total / this.completed.length;
+  }
+
+  private averageStageDurations(): number[] {
+    const counts: number[] = [];
+    const totals: number[] = [];
+    for (const c of this.completed) {
+      for (let i = 0; i < c.stageDurations.length; i++) {
+        totals[i] = (totals[i] ?? 0) + c.stageDurations[i];
+        counts[i] = (counts[i] ?? 0) + 1;
+      }
+    }
+    return totals.map((t, i) => t / counts[i]);
   }
 }
 

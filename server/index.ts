@@ -67,12 +67,9 @@ app.get('/api/stock/:ticker/stream', (req: Request<{ ticker: string }>, res: Res
     res.end();
   };
 
-  // Check cache first — if we have fresh data, send it immediately with no scrape
-  const cached = getCachedData(symbol);
-  if (cached) {
-    sendData(cached);
-    return;
-  }
+  // fetchTickerData handles cache hits by running only stages 1 & 2 (quote
+  // summary + real-time price), so the client always receives fresh price data
+  // via this SSE stream even when the full cache is valid.
 
   let done = false;
   const abortController = new AbortController();

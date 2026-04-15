@@ -583,6 +583,11 @@ function isCompleteResult(result: TickerResult): boolean {
  * Fetch ticker data with deduplication. Multiple callers for the same ticker
  * share one scrape. The scrape aborts when all callers disconnect.
  *
+ * When a valid cache entry exists (within TTL, complete), stages 3 & 4
+ * (balance sheet + profile) are skipped and their values are reused from
+ * cache — only the quote summary and real-time price are re-fetched so the
+ * client always receives up-to-date price/EPS/dividend data via SSE.
+ *
  * @param requestSignal - The HTTP request's abort signal. When the client
  *   disconnects this fires, decrementing the ref count. When it hits 0
  *   the underlying scrape is aborted.
@@ -590,10 +595,12 @@ function isCompleteResult(result: TickerResult): boolean {
 export async function fetchTickerData(ticker: string, requestSignal?: AbortSignal): Promise<TickerResult> {
   const symbol = ticker.toUpperCase().trim();
 
+  // Determine whether we can skip the slow stages (balance sheet + profile).
+  // We still run stages 1 & 2 so the client gets fresh price data via SSE.
   const cached = cache.get(symbol);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL && isCompleteResult(cached.data)) {
-    return cached.data;
-  }
+  const cachedEntry = (cached && Date.now() - cached.timestamp < CACHE_TTL && isCompleteResult(cached.data))
+    ? cached.data
+    : undefined;
 
   let entry = inflight.get(symbol);
 
@@ -604,9 +611,10 @@ export async function fetchTickerData(ticker: string, requestSignal?: AbortSigna
   } else {
     // Start a new scrape — register as queued synchronously before the async
     // scrape begins, so SSE clients that connect immediately see the queued state.
-    metrics.queueProcess(symbol);
+    const totalStages = cachedEntry ? 2 : 4;
+    metrics.queueProcess(symbol, totalStages);
     const abort = new AbortController();
-    const promise = scrapeTickerData(symbol, abort.signal);
+    const promise = scrapeTickerData(symbol, abort.signal, cachedEntry);
     entry = { promise, abort, refCount: 1, settled: false, graceTimer: null };
     inflight.set(symbol, entry);
 
@@ -652,14 +660,20 @@ export async function fetchTickerData(ticker: string, requestSignal?: AbortSigna
   }
 }
 
-/** The actual scrape — aborts when its signal fires. */
-async function scrapeTickerData(symbol: string, signal: AbortSignal): Promise<TickerResult> {
+/** The actual scrape — aborts when its signal fires.
+ *
+ * @param cachedEntry - When provided, stages 3 & 4 (balance sheet + profile)
+ *   are skipped and their values are taken from this entry. Only stages 1 & 2
+ *   (quote summary + real-time price) are re-fetched.
+ */
+async function scrapeTickerData(symbol: string, signal: AbortSignal, cachedEntry?: TickerResult): Promise<TickerResult> {
+  const totalStages = cachedEntry ? 2 : 4;
 
   await acquireScrapeSlot();
   metrics.dequeueProcess(symbol);
   if (signal.aborted) { releaseScrapeSlot(); throw new Error('Aborted'); }
 
-  metrics.startProcess(symbol);
+  metrics.startProcess(symbol, totalStages);
 
   try {
     // 1. Quote summary (EPS, dividend, book value, etc.)
@@ -671,7 +685,7 @@ async function scrapeTickerData(symbol: string, signal: AbortSignal): Promise<Ti
     const ks = summary.defaultKeyStatistics ?? {};
     const ap = summary.assetProfile ?? {};
 
-    const quoteType = toStringVal(summary.price?.quoteType);
+    const quoteType = toStringVal(summary.price?.quoteType) ?? cachedEntry?.quoteType ?? null;
 
     let price = rawVal(fd.currentPrice) ?? rawVal(summary.price?.regularMarketPrice);
     let prevClose = rawVal(summary.price?.regularMarketPreviousClose);
@@ -696,30 +710,57 @@ async function scrapeTickerData(symbol: string, signal: AbortSignal): Promise<Ti
     const priceToBook = rawVal(ks.priceToBook);
     const sharesOutstandingQuote = rawVal(ks.sharesOutstanding);
 
-    // 3. Balance sheet (goodwill, intangibles, full assets/liabilities)
-    metrics.updateStage(symbol, 2, 'balance sheet');
-    const bsData = await scrapeBalanceSheet(symbol, signal);
-    metrics.updateStage(symbol, 3, 'balance sheet ✓');
+    let totalAssets: number | null;
+    let goodwillNet: number | null;
+    let intangiblesNet: number | null;
+    let liabilitiesTotal: number | null;
+    let sharesOutstanding: number | null;
+    let relatedTickers: string[];
+    let sector: string | null;
+    let industry: string | null;
 
-    const K = 1000; // Yahoo reports balance sheet values in thousands
-    const bsTotalAssets = bsData ? parseNum(bsData.totalAssets) : null;
-    const bsGoodwill = bsData ? parseNum(bsData.goodwillNet) : null;
-    const bsIntangibles = bsData ? parseNum(bsData.intangiblesNet) : null;
-    const bsLiabilities = bsData ? parseNum(bsData.liabilitiesTotal) : null;
-    const bsShares = bsData ? parseNum(bsData.sharesOutstanding) : null;
+    if (cachedEntry) {
+      // Reuse slow-changing fields from cache — skip stages 3 & 4
+      totalAssets = cachedEntry.totalAssets;
+      goodwillNet = cachedEntry.goodwillNet;
+      intangiblesNet = cachedEntry.intangiblesNet;
+      liabilitiesTotal = cachedEntry.liabilitiesTotal;
+      sharesOutstanding = cachedEntry.sharesOutstanding;
+      relatedTickers = cachedEntry.relatedTickers;
+      sector = cachedEntry.sector;
+      industry = cachedEntry.industry;
+    } else {
+      // 3. Balance sheet (goodwill, intangibles, full assets/liabilities)
+      metrics.updateStage(symbol, 2, 'balance sheet');
+      const bsData = await scrapeBalanceSheet(symbol, signal);
+      metrics.updateStage(symbol, 3, 'balance sheet ✓');
 
-    const totalDebt = rawVal(fd.totalDebt);
-    const totalEquity = bookValue != null && sharesOutstandingQuote != null
-      ? bookValue * sharesOutstandingQuote : null;
+      const K = 1000; // Yahoo reports balance sheet values in thousands
+      const bsTotalAssets = bsData ? parseNum(bsData.totalAssets) : null;
+      const bsGoodwill = bsData ? parseNum(bsData.goodwillNet) : null;
+      const bsIntangibles = bsData ? parseNum(bsData.intangiblesNet) : null;
+      const bsLiabilities = bsData ? parseNum(bsData.liabilitiesTotal) : null;
+      const bsShares = bsData ? parseNum(bsData.sharesOutstanding) : null;
 
-    const relatedTickers = bsData?.relatedTickers?.filter((t) => t !== symbol) ?? [];
+      const totalDebt = rawVal(fd.totalDebt);
+      const totalEquity = bookValue != null && sharesOutstandingQuote != null
+        ? bookValue * sharesOutstandingQuote : null;
 
-    // 4. Profile (sector/industry)
-    metrics.updateStage(symbol, 3, 'profile');
-    const profile = await fetchProfile(symbol, signal);
-    metrics.updateStage(symbol, 4, 'complete');
-    const sector = profile?.sector || toStringVal(ap.sector);
-    const industry = profile?.industry || toStringVal(ap.industry);
+      totalAssets = bsTotalAssets != null ? bsTotalAssets * K
+        : (totalEquity != null && totalDebt != null ? totalEquity + totalDebt : null);
+      goodwillNet = bsGoodwill != null ? bsGoodwill * K : null;
+      intangiblesNet = bsIntangibles != null ? bsIntangibles * K : null;
+      liabilitiesTotal = bsLiabilities != null ? bsLiabilities * K : totalDebt;
+      sharesOutstanding = bsShares != null ? bsShares * K : sharesOutstandingQuote;
+      relatedTickers = bsData?.relatedTickers?.filter((t) => t !== symbol) ?? [];
+
+      // 4. Profile (sector/industry)
+      metrics.updateStage(symbol, 3, 'profile');
+      const profile = await fetchProfile(symbol, signal);
+      metrics.updateStage(symbol, 4, 'complete');
+      sector = profile?.sector || toStringVal(ap.sector);
+      industry = profile?.industry || toStringVal(ap.industry);
+    }
 
     const result: TickerResult = {
       ticker: symbol,
@@ -730,12 +771,11 @@ async function scrapeTickerData(symbol: string, signal: AbortSignal): Promise<Ti
       industry,
       divYield: divRate,
       eps,
-      totalAssets: bsTotalAssets != null ? bsTotalAssets * K
-        : (totalEquity != null && totalDebt != null ? totalEquity + totalDebt : null),
-      goodwillNet: bsGoodwill != null ? bsGoodwill * K : null,
-      intangiblesNet: bsIntangibles != null ? bsIntangibles * K : null,
-      liabilitiesTotal: bsLiabilities != null ? bsLiabilities * K : totalDebt,
-      sharesOutstanding: bsShares != null ? bsShares * K : sharesOutstandingQuote,
+      totalAssets,
+      goodwillNet,
+      intangiblesNet,
+      liabilitiesTotal,
+      sharesOutstanding,
       dividendPercent: divYieldPct,
       bookValue,
       priceToBook,
@@ -743,7 +783,9 @@ async function scrapeTickerData(symbol: string, signal: AbortSignal): Promise<Ti
       quoteType,
     };
 
-    cache.set(symbol, { data: result, timestamp: Date.now() });
+    // Preserve the original cache timestamp when doing a live refresh so the TTL is not reset
+    const timestamp = cachedEntry ? (cache.get(symbol)?.timestamp ?? Date.now()) : Date.now();
+    cache.set(symbol, { data: result, timestamp });
     if (isCompleteResult(result)) {
       saveCache();
     } else {

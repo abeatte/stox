@@ -228,8 +228,13 @@ export class ServerMetrics {
   endProcess(ticker: string): void {
     const proc = this.running.get(ticker);
     if (proc) {
-      // Record the final stage duration
-      proc.stageDurations[proc.stage] = Date.now() - proc.stageStartTime;
+      // Only record the final stage duration if we haven't already advanced past
+      // the last real stage. The final updateStage call uses stage = totalStages
+      // as a "done" sentinel, which resets stageStartTime to near-zero — recording
+      // that would produce a spurious 0.0s entry for the last stage slot.
+      if (proc.stage < proc.totalStages) {
+        proc.stageDurations[proc.stage] = Date.now() - proc.stageStartTime;
+      }
       this.completed.push({
         ticker,
         duration: Date.now() - proc.startTime,
@@ -408,7 +413,10 @@ export class ServerMetrics {
     const totals: number[] = [];
     for (const c of this.completed) {
       for (let i = 0; i < c.stageDurations.length; i++) {
-        totals[i] = (totals[i] ?? 0) + c.stageDurations[i];
+        const d = c.stageDurations[i];
+        // Skip stages that were never run (sparse array slots are undefined)
+        if (d === undefined) continue;
+        totals[i] = (totals[i] ?? 0) + d;
         counts[i] = (counts[i] ?? 0) + 1;
       }
     }

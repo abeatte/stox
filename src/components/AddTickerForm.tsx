@@ -6,6 +6,7 @@ export interface AddTickerFormProps {
   placeholder?: string;
   /** Accessible label for the input field. */
   inputLabel?: string;
+  disabled?: boolean;
 }
 
 /**
@@ -16,6 +17,7 @@ export function AddTickerForm({
   onAddTicker,
   placeholder = 'AAPL, MSFT, GOOG',
   inputLabel = 'Ticker symbols, comma separated',
+  disabled = false,
 }: AddTickerFormProps) {
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -37,16 +39,18 @@ export function AddTickerForm({
   return (
     <form onSubmit={handleSubmit} aria-label="Add ticker">
       <input
+        name='ticker'
         type="text"
         placeholder={placeholder}
         aria-label={inputLabel}
         value={input}
+        disabled={disabled}
         onChange={(e) => {
           setInput(e.target.value);
           if (error) setError(null);
         }}
       />
-      <button type="submit">Add</button>
+      <button type="submit" disabled={disabled}>Add</button>
       {error && (
         <span role="alert" style={{ color: 'red', marginLeft: 8 }}>
           {error}

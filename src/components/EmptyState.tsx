@@ -1,3 +1,5 @@
+import { Status } from '../hooks/usePingServerStatus';
+import { useServerStatus } from '../hooks/useServerStatus';
 import { AddTickerForm } from './AddTickerForm';
 import ServerStatus from './ServerStatus';
 
@@ -11,6 +13,8 @@ interface EmptyStateProps {
  * Includes an add-ticker form so users can get started.
  */
 export function EmptyState({ onAddTicker, onHelpOpen }: EmptyStateProps) {
+    const { connectedStatus } = useServerStatus();
+
   return (
     <div role="status" aria-label="Empty state" className="gs-empty">
       <ServerStatus />
@@ -19,6 +23,7 @@ export function EmptyState({ onAddTicker, onHelpOpen }: EmptyStateProps) {
         onAddTicker={onAddTicker}
         placeholder="Ticker symbol"
         inputLabel="Ticker symbol"
+        disabled={connectedStatus !== Status.Connected}
       />
       <button
         type="button"

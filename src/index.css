@@ -154,6 +154,27 @@ body {
   gap: 8px;
 }
 
+/* */
+.gs-server-status .dot {
+  height: 5px;
+  width: 5px;
+  margin: 0px 4px 1px 0px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.gs-server-status .dot.green {
+  background-color: #2ecc71;
+}
+
+.gs-server-status .dot.red {
+  background-color: red;
+}
+
+.gs-server-status .dot.yellow {
+  background-color: yellow;
+}
+
 /* ── Rocker switch ── */
 .gs-rocker-label {
   display: flex;

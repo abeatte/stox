@@ -4,6 +4,7 @@
  *
  * Usage: npx tsx server/index.ts
  * Endpoints:
+ *   GET  /alive                    — health check, returns 200 OK
  *   GET  /api/stock/:ticker/stream — SSE stream: progress events then final data
  *   GET  /api/stock/:ticker        — fetch (cached) stock data, JSON response
  *   POST /api/refresh-stocks       — force-refresh stock data (clears cache)
@@ -24,6 +25,10 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 });
 
 app.options('/{*path}', (_req: Request, res: Response) => { res.sendStatus(204); });
+
+app.get('/alive', (_req: Request, res: Response) => {
+  res.sendStatus(200);
+});
 
 app.use(express.json());
 

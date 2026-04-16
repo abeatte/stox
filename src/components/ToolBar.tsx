@@ -1,5 +1,5 @@
 import { AddTickerForm } from './AddTickerForm';
-import { Status, usePingServerStatus } from '../hooks/usePingServerStatus';
+import ServerStatus from './ServerStatus';
 
 export interface ToolBarProps {
   searchQuery: string;
@@ -68,7 +68,6 @@ export function ToolBar({
   isLive,
   onToggleLive,
 }: ToolBarProps) {
-  const { connectedStatus, isLoading: isConnectedStatusLoading } = usePingServerStatus();
 
   return (
     <div role="toolbar" aria-label="Toolbar" className="gs-toolbar">
@@ -85,10 +84,7 @@ export function ToolBar({
         ?
       </button>
       <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', alignItems: 'center' }}>
-        <span className='gs-server-status'>
-          <span className={`dot ${isConnectedStatusLoading ? 'yellow' : connectedStatus === Status.Connected ? 'green' : 'red'}`}></span>
-          {(isConnectedStatusLoading ? 'unknown' : connectedStatus === Status.Connected ? ' connected' : 'disconnected')}
-        </span>
+        <ServerStatus />
         <label className="gs-rocker-label" title={isLive ? 'Live data — click to use cached data' : 'Cached data — click to go live'}>
           <span className="gs-rocker-text">{isLive ? 'Live' : 'Cached'}</span>
           <span

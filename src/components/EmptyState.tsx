@@ -13,11 +13,11 @@ interface EmptyStateProps {
  * Includes an add-ticker form so users can get started.
  */
 export function EmptyState({ onAddTicker, onHelpOpen }: EmptyStateProps) {
-    const { connectedStatus } = useServerStatus();
+  const { connectedStatus } = useServerStatus();
 
   return (
     <div role="status" aria-label="Empty state" className="gs-empty">
-      <ServerStatus />
+      <ServerStatus detailed={true} />
       <p>No tickers configured. Add a ticker to get started.</p>
       <AddTickerForm
         onAddTicker={onAddTicker}

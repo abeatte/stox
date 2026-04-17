@@ -8,7 +8,7 @@
     "server": "tsc -p tsconfig.server.json && node dist/server/index.js",
     "dev:all": "tsc -p tsconfig.server.json && concurrently -n server,vite -c blue,green \"node dist/server/index.js\" \"vite\"",
     "build": "tsc -b && vite build && npm run zip-server",
-    "build-server": "tsc -p tsconfig.server.json && cp server/README.md dist/server/README.md && cp server/start_server.sh dist/server/start_server.sh && chmod +x dist/server/start_server.sh && cp server/kill_server.sh dist/server/kill_server.sh && chmod +x dist/server/kill_server.sh",
+    "build-server": "tsc -p tsconfig.server.json && cp server/README.md dist/server/README.md && cp package.json dist/server/package.json && cp server/start_server.sh dist/server/start_server.sh && chmod +x dist/server/start_server.sh && cp server/kill_server.sh dist/server/kill_server.sh && chmod +x dist/server/kill_server.sh",
     "zip-server": "npm run build-server && ditto -c -k --sequesterRsrc --keepParent dist/server stockworks_server.zip && mv stockworks_server.zip dist/stockworks_server.zip",
     "predeploy": "npm run lint && npm run test && npm run build",
     "deploy": "gh-pages -d dist -s \"{**,!server/**,!.kiro/**,!.notes/**}\"",

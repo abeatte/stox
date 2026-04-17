@@ -3,4 +3,4 @@ TODO:
 [] - (optional) Wire up Circle CI integration with auto deploy after tests
 [X] - When server is not found, enable button to download server zip file
 [X] - Enhance server zip file to be a script that will handle inflating, and running in terminal
-[] - BUG: Missing node modules / dependencies in server zip. 
+[X] - BUG: Missing node modules / dependencies in server zip. 

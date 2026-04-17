@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export const CONNECTED_PING_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const CONNECTED_PING_INTERVAL_MS = 30 * 1000; // 30 seconds
 
 export enum Status { Connected, Disconnected, Unknown };
 

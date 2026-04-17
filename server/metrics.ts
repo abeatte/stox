@@ -116,6 +116,7 @@ export class ServerMetrics {
   }
 
   private interceptConsole(): void {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
 
     const makeInterceptor = (original: typeof rawWrite): typeof rawWrite => {

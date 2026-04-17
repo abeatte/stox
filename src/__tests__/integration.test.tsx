@@ -15,6 +15,7 @@ import { EmptyState } from '../components/EmptyState';
 import { HelpDialog } from '../components/HelpDialog';
 import { COLUMNS } from '../columns';
 import type { RawStockData } from '../types';
+import { Status } from '../hooks/usePingServerStatus';
 
 // ---------------------------------------------------------------------------
 // EventSource mock
@@ -134,6 +135,9 @@ const DEFAULT_DATA: Record<string, RawStockData> = {
 
 function renderApp() {
   function AppContent() {
+    vi.mock('../hooks/useServerStatus', () => ({
+        useServerStatus: vi.fn(() => ({ connectedStatus: Status.Connected, isLoading: false, isError: false }))
+      }));
     const [tickers, addTicker] = useTickerList();
     const [helpOpen, setHelpOpen] = useState(false);
     return (

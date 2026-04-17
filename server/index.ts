@@ -194,6 +194,7 @@ app.post('/api/refresh-stocks', async (req: Request, res: Response) => {
   }
 });
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   metrics.log(`Unhandled error: ${err.message}`);
   if (!res.headersSent) res.status(500).json({ error: err.message });

@@ -10,6 +10,7 @@ type MessageHandler = (event: { data: string }) => void;
 type ErrorHandler = () => void;
 
 interface MockEventSourceInstance {
+  url: string | null;
   onmessage: MessageHandler | null;
   onerror: ErrorHandler | null;
   close: ReturnType<typeof vi.fn>;
@@ -28,6 +29,7 @@ class MockEventSource implements MockEventSourceInstance {
   close = vi.fn();
 
   constructor(public url: string) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     lastEventSource = this;
   }
 

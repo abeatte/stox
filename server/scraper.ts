@@ -201,13 +201,13 @@ async function openPage(signal?: AbortSignal): Promise<PageHandle> {
   await page.setUserAgent(UA);
   await page.setViewport({ width: 1280, height: 800 });
 
-  const onAbort = (): void => { page.close().catch(() => {}); };
+  const onAbort = (): void => { page.close().catch(() => { }); };
   if (signal?.aborted) { await page.close(); throw new Error('Aborted'); }
   signal?.addEventListener('abort', onAbort, { once: true });
 
   const cleanup = async (): Promise<void> => {
     signal?.removeEventListener('abort', onAbort);
-    await page.close().catch(() => {});
+    await page.close().catch(() => { });
   };
 
   return { page, cleanup };
@@ -365,6 +365,7 @@ async function scrapeBalanceSheet(ticker: string, signal?: AbortSignal): Promise
         if (heading && /related\s+tickers/i.test(heading.textContent ?? '')) {
           const seen = new Set<string>();
           for (const a of section.querySelectorAll('a[href*="/quote/"]')) {
+            // eslint-disable-next-line no-useless-escape
             const match = a.getAttribute('href')?.match(/\/quote\/([A-Z0-9.\-]+)/);
             if (match && !seen.has(match[1])) {
               seen.add(match[1]);
@@ -406,7 +407,7 @@ async function getRealtimePrice(ticker: string, signal?: AbortSignal): Promise<R
       waitUntil: 'domcontentloaded', timeout: 30000,
     });
 
-    await page.waitForSelector('section[data-testid="price-statistic"]', { timeout: 10000 }).catch(() => {});
+    await page.waitForSelector('section[data-testid="price-statistic"]', { timeout: 10000 }).catch(() => { });
     await new Promise<void>((r) => setTimeout(r, 2000));
 
     interface ScrapedPriceData {

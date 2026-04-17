@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { EmptyState } from './EmptyState';
+import { Status } from '../hooks/usePingServerStatus';
 
 function setup(overrides: Partial<Parameters<typeof EmptyState>[0]> = {}) {
   const props = {
@@ -9,6 +10,11 @@ function setup(overrides: Partial<Parameters<typeof EmptyState>[0]> = {}) {
     ...overrides,
   };
   render(<EmptyState {...props} />);
+
+  vi.mock('../hooks/useServerStatus', () => ({
+    useServerStatus: vi.fn(() => ({ connectedStatus: Status.Connected, isLoading: false, isError: false }))
+  }));
+
   return props;
 }
 

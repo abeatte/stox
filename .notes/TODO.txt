@@ -1,5 +1,0 @@
-TODO:
-[] - Wire up github deploy script(s)
-[] - (optional) Wire up Circle CI integration with auto deploy after tests
-[] - When server is not found, enable button to download server zip file
-[] - Enhance server zip file to be a script that will handle inflating, and running in terminal

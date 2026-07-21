@@ -2,11 +2,12 @@
  * Yahoo Finance scraper — Puppeteer.
  * All page fetches use a shared headless Chrome instance.
  */
-import puppeteer, { type Browser, type ElementHandle, type Page, type HTTPResponse } from 'puppeteer';
+import puppeteer, { type Browser, type Page, type HTTPResponse } from 'puppeteer';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { metrics } from './metrics.js';
+import { parseNum, extractBalanceSheetValues } from './parse.js';
 
 const CACHE_FILE = resolve('server', '.stock-cache.json');
 
@@ -379,63 +380,25 @@ async function scrapeBalanceSheet(ticker: string, signal?: AbortSignal): Promise
     await new Promise<void>((r) => setTimeout(r, 5000));
 
     try {
-      // Find and click the "Expand All" button
-      const expandAllBtn = await page.evaluateHandle(() => {
-        const buttons = [...document.querySelectorAll('button')];
-        return buttons.find((b) => b.textContent?.trim() === 'Expand All') ?? null;
+      // Expand the nested rows (Goodwill, Other Intangible Assets, etc. are
+      // collapsed by default). The button must be scrolled into view and
+      // clicked via an in-page DOM click — a Puppeteer ElementHandle click at
+      // the default viewport misses it and the rows stay collapsed.
+      const expanded = await page.evaluate(() => {
+        const btn = [...document.querySelectorAll('button')]
+          .find((b) => /^expand all$/i.test(b.textContent?.trim() ?? ''));
+        if (!btn) return false;
+        btn.scrollIntoView({ block: 'center' });
+        (btn as HTMLElement).click();
+        return true;
       });
-      const element = expandAllBtn.asElement();
-      if (element) {
-        await (element as ElementHandle<HTMLButtonElement>).click();
-        await new Promise<void>((r) => setTimeout(r, 3000));
-      }
-      await expandAllBtn.dispose();
+      if (expanded) await new Promise<void>((r) => setTimeout(r, 3500));
     } catch { /* no expand button */ }
 
-    const data: BalanceSheetData = await page.evaluate(() => {
-      const lines = document.body.innerText.split('\n').map((l: string) => l.trim());
-      // A value cell looks like 352.76B / 1.2T / 950.5M / 15,940 / -1.2B / "--".
-      const valueRe = /^\(?-?\$?[\d,]+(\.\d+)?[KMBT]?\)?$/i;
-      const isValue = (s: string | undefined): boolean => s === '--' || (s != null && valueRe.test(s));
-
-      // Yahoo lays out balance-sheet columns oldest -> newest (e.g.
-      // 1/31/2023 … 1/31/2026), so we must NOT just take the first value cell.
-      // Read the "Breakdown" header to find the number of period columns and
-      // which one is the most recent (TTM, if present, always wins).
-      const dateRe = /^(\d{1,2}\/\d{1,2}\/\d{4}|TTM)$/;
-      let numCols = 0;
-      let latestIdx = 0;
-      const hdr = lines.indexOf('Breakdown');
-      if (hdr >= 0) {
-        const cols: string[] = [];
-        for (let i = hdr + 1; i < lines.length && dateRe.test(lines[i]); i++) cols.push(lines[i]);
-        numCols = cols.length;
-        let best = -Infinity;
-        cols.forEach((c, idx) => {
-          const t = c === 'TTM' ? Infinity : Date.parse(c);
-          if (!Number.isNaN(t) && t > best) { best = t; latestIdx = idx; }
-        });
-      }
-
-      const getValue = (label: string): string | null => {
-        // Find the row whose label is immediately followed by value cells
-        // (labels like "Total Assets" also appear in a chart legend with a
-        // non-numeric next line), then return the most-recent period's cell.
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i] !== label || !isValue(lines[i + 1])) continue;
-          const vals: string[] = [];
-          for (let j = i + 1; j < lines.length && isValue(lines[j]); j++) {
-            vals.push(lines[j]);
-            if (numCols > 0 && vals.length >= numCols) break;
-          }
-          if (vals.length === 0) continue;
-          const idx = numCols > 0 && latestIdx < vals.length ? latestIdx : vals.length - 1;
-          return vals[idx];
-        }
-        return null;
-      };
-
-      const relatedTickers: string[] = [];
+    // Extract raw text + related tickers in the browser, then parse the
+    // statement values in Node (see parse.ts) so the parsing is unit-testable.
+    const { bodyText, relatedTickers } = await page.evaluate(() => {
+      const tickers: string[] = [];
       const sections = document.querySelectorAll('section');
       for (const section of sections) {
         const heading = section.querySelector('h2, h3');
@@ -446,22 +409,17 @@ async function scrapeBalanceSheet(ticker: string, signal?: AbortSignal): Promise
             const match = a.getAttribute('href')?.match(/\/quote\/([A-Z0-9.\-]+)/);
             if (match && !seen.has(match[1])) {
               seen.add(match[1]);
-              relatedTickers.push(match[1]);
+              tickers.push(match[1]);
             }
           }
           break;
         }
       }
-
-      return {
-        totalAssets: getValue('Total Assets'),
-        goodwillNet: getValue('Goodwill'),
-        intangiblesNet: getValue('Other Intangible Assets'),
-        liabilitiesTotal: getValue('Total Liabilities Net Minority Interest'),
-        sharesOutstanding: getValue('Share Issued') || getValue('Ordinary Shares Number'),
-        relatedTickers,
-      };
+      return { bodyText: document.body.innerText, relatedTickers: tickers };
     });
+
+    const values = extractBalanceSheetValues(bodyText);
+    const data: BalanceSheetData = { ...values, relatedTickers };
     return data;
   } catch {
     metrics.log(`${ticker} balance sheet scrape failed`);
@@ -557,23 +515,6 @@ function rawVal(field: YahooField | string | number | null | undefined): number 
 function toStringVal(field: YahooField | string | number | null | undefined): string | null {
   if (typeof field === 'string') return field;
   return null;
-}
-
-function parseNum(raw: string | null): number | null {
-  if (!raw || raw === '--' || raw === 'N/A') return null;
-  let str = raw.trim().replace(/[$,\s]/g, '');
-  // Parenthesised negatives, e.g. "(1.2B)"
-  const neg = str.startsWith('(') && str.endsWith(')');
-  if (neg) str = str.slice(1, -1);
-  // Yahoo abbreviates balance-sheet figures with a magnitude suffix
-  // (e.g. "352.76B", "1.2T", "950.5M", "15.94K"). Capture and scale it.
-  const m = str.match(/^(-?\d+(?:\.\d+)?)([KMBT])?$/i);
-  if (!m) return null;
-  let n = parseFloat(m[1]);
-  if (isNaN(n)) return null;
-  const MULT: Record<string, number> = { K: 1e3, M: 1e6, B: 1e9, T: 1e12 };
-  n *= MULT[(m[2] ?? '').toUpperCase()] ?? 1;
-  return neg ? -Math.abs(n) : n;
 }
 
 // ---------------------------------------------------------------------------

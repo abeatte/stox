@@ -130,7 +130,7 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
       // must be deferred to a microtask — updating state synchronously would
       // trigger React's "Cannot update a component while rendering a different
       // component" warning (and can cause render loops).
-      if (row !== prev) {
+      if (row !== prev && !(row == null && prev == null)) {
         queueMicrotask(() => setDataVersion((v) => v + 1));
       }
       if (row && !hasData) {

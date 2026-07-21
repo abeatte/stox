@@ -168,7 +168,12 @@ async function deliverData(
       expect(MockEventSource.forTicker(ticker)).toBeDefined();
     }
   });
-  act(() => MockEventSource.deliverAll(dataMap));
+  // Deliver data and flush the deferred (queueMicrotask) row-data state updates
+  // inside act() so they don't surface as "not wrapped in act(...)" warnings.
+  await act(async () => {
+    MockEventSource.deliverAll(dataMap);
+    await Promise.resolve();
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -644,7 +649,7 @@ describe('Stox Integration Tests', () => {
       act(() => es.emit({ type: 'progress', stage: 1, totalStages: 4, stageLabel: 'quote summary' }));
       await waitFor(() => expect(screen.getByText('quote summary')).toBeInTheDocument());
 
-      act(() => es.emit({ type: 'data', payload: AAPL_DATA }));
+      await act(async () => { es.emit({ type: 'data', payload: AAPL_DATA }); await Promise.resolve(); });
       await waitFor(() => expect(screen.getByText('$185.50')).toBeInTheDocument());
       expect(screen.queryByText('quote summary')).not.toBeInTheDocument();
     });

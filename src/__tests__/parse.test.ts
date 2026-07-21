@@ -10,11 +10,23 @@ import { describe, it, expect } from 'vitest';
 import { parseNum, getLatestValue, extractBalanceSheetValues } from '../../server/parse';
 
 describe('parseNum', () => {
-  it('scales magnitude suffixes to absolute numbers', () => {
-    expect(parseNum('352.76B')).toBeCloseTo(352.76e9, 2);
-    expect(parseNum('1.2T')).toBeCloseTo(1.2e12, 2);
-    expect(parseNum('950.5M')).toBeCloseTo(950.5e6, 2);
-    expect(parseNum('15.94K')).toBeCloseTo(15.94e3, 2);
+  it('scales magnitude suffixes to absolute (rounded) integers', () => {
+    expect(parseNum('352.76B')).toBe(352_760_000_000);
+    expect(parseNum('1.2T')).toBe(1_200_000_000_000);
+    expect(parseNum('950.5M')).toBe(950_500_000);
+    expect(parseNum('15.94K')).toBe(15_940);
+  });
+
+  it('rounds away float artifacts from mantissa * magnitude', () => {
+    // 33.38 * 1e9 === 33380000000.000004 without rounding.
+    const n = parseNum('33.38B');
+    expect(n).toBe(33_380_000_000);
+    expect(Number.isInteger(n)).toBe(true);
+  });
+
+  it('does NOT round un-suffixed decimal values (e.g. prices)', () => {
+    expect(parseNum('42.50')).toBe(42.5);
+    expect(parseNum('$3.14')).toBe(3.14);
   });
 
   it('is case-insensitive on the suffix', () => {
@@ -46,7 +58,7 @@ describe('parseNum', () => {
 
   it('does NOT reapply a thousands multiplier (regression: 352.76B != 302080)', () => {
     // The old code did parseFloat("302.08B") -> 302.08, then * 1000 -> 302080.
-    expect(parseNum('302.08B')).toBeCloseTo(302.08e9, 2);
+    expect(parseNum('302.08B')).toBe(302_080_000_000);
   });
 });
 
@@ -158,6 +170,6 @@ describe('extractBalanceSheetValues', () => {
   it('round-trips through parseNum to absolute numbers', () => {
     const v = extractBalanceSheetValues(body);
     expect(parseNum(v.totalAssets)).toBe(619e9);
-    expect(parseNum(v.goodwillNet)).toBeCloseTo(67.9e9, 2);
+    expect(parseNum(v.goodwillNet)).toBe(67_900_000_000);
   });
 });

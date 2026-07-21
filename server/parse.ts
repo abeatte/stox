@@ -39,7 +39,13 @@ export function parseNum(raw: string | null | undefined): number | null {
   if (!m) return null;
   let n = parseFloat(m[1]);
   if (isNaN(n)) return null;
-  n *= MAGNITUDE[(m[2] ?? '').toUpperCase()] ?? 1;
+  const mult = MAGNITUDE[(m[2] ?? '').toUpperCase()] ?? 1;
+  n *= mult;
+  // Multiplying a decimal mantissa by a large magnitude introduces float
+  // artifacts (e.g. 33.38 * 1e9 = 33380000000.000004). These figures are in
+  // thousands or larger, so sub-unit precision is meaningless — round to an
+  // integer. Un-suffixed values (prices like 42.50) are left untouched.
+  if (mult !== 1) n = Math.round(n);
   return neg ? -Math.abs(n) : n;
 }
 

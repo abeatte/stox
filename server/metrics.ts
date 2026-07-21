@@ -104,7 +104,7 @@ export class ServerMetrics {
   private bannerLines: string[] = [];
   private progressListeners = new Set<ProgressListener>();
 
-  constructor(enabled = true) {
+  constructor(enabled = ServerMetrics.dashboardEnabled()) {
     this.enabled = enabled;
     if (this.enabled) {
       this.interceptConsole();
@@ -113,6 +113,20 @@ export class ServerMetrics {
       this.renderTimer = setInterval(() => this.render(), 500);
       this.render();
     }
+  }
+
+  /**
+   * Decide whether the live alt-screen dashboard should run. It requires an
+   * interactive TTY — otherwise the ANSI control sequences corrupt piped/redirected
+   * logs and the stdout interception swallows error output (e.g. when run as a
+   * background service, under `nohup`, or in CI). Override with STOX_DASHBOARD=1
+   * to force it on or STOX_DASHBOARD=0 to force it off.
+   */
+  private static dashboardEnabled(): boolean {
+    const flag = process.env.STOX_DASHBOARD;
+    if (flag === '1' || flag === 'true') return true;
+    if (flag === '0' || flag === 'false') return false;
+    return Boolean(process.stdout.isTTY);
   }
 
   private interceptConsole(): void {
@@ -156,7 +170,11 @@ export class ServerMetrics {
   /** Set a persistent message displayed at the top of the dashboard. */
   setBanner(message: string): void {
     this.bannerLines.push(message);
-    this.render();
+    if (this.enabled) {
+      this.render();
+    } else {
+      rawWrite(`[stox] ${message}\n`);
+    }
   }
 
   /** Probe localhost ports to find the Vite dev server and add it to the banner. */
@@ -187,7 +205,11 @@ export class ServerMetrics {
 
   log(message: string): void {
     this.pushEvent(message);
-    this.render();
+    if (this.enabled) {
+      this.render();
+    } else {
+      rawWrite(`[stox] ${message}\n`);
+    }
   }
 
   /** Mark a ticker as waiting for a concurrency slot. */
@@ -244,6 +266,9 @@ export class ServerMetrics {
       });
       if (this.completed.length > HISTORY_LIMIT) this.completed = this.completed.slice(-HISTORY_LIMIT);
       this.running.delete(ticker);
+      if (!this.enabled) {
+        rawWrite(`[stox] ${ticker} done in ${((Date.now() - proc.startTime) / 1000).toFixed(1)}s\n`);
+      }
     }
     this.render();
   }
@@ -283,6 +308,7 @@ export class ServerMetrics {
   /** Leave alternate screen, restore stdout/stderr, show cursor. */
   destroy(): void {
     if (this.renderTimer) { clearInterval(this.renderTimer); this.renderTimer = null; }
+    if (!this.enabled) return;
     process.stdout.write = rawWrite;
     process.stderr.write = rawErrWrite;
     rawWrite(CURSOR_SHOW + ALT_SCREEN_OFF);

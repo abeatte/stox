@@ -21,8 +21,26 @@ import { metrics } from './metrics.js';
 const app = express();
 const PORT = 3001;
 
-app.use((_req: Request, res: Response, next: NextFunction) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+/**
+ * CORS allowlist. Defaults to the local Vite dev (5173) and preview (4173)
+ * origins; override with STOX_ALLOWED_ORIGINS (comma-separated). The wildcard
+ * `*` was replaced because this proxy is unauthenticated — any site should not
+ * be able to drive it from a user's browser.
+ */
+const ALLOWED_ORIGINS = (
+  process.env.STOX_ALLOWED_ORIGINS ??
+  'http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173'
+)
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   next();

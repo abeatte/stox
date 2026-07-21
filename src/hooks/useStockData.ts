@@ -104,7 +104,6 @@ export function useStockData(ticker: string): StockDataState {
       eventSource.close();
     };
   // fetchCount in deps so refetch() re-runs the effect
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticker, fetchCount]);
 
   return { ...state, refetch };

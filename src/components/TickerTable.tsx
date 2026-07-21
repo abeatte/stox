@@ -195,6 +195,9 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
     }
 
     return result;
+    // dataVersion is a load-bearing dep: rowDataMap is a stable ref that mutates
+    // in place, so bumping dataVersion is what forces re-sorting on data changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prioritizedTickers, sortCriteria, sortRows, rowDataMap, starredTickers, dataVersion]);
 
   // Export handler

@@ -34,7 +34,9 @@ export function Heatmap({ rowDataMap, tickers, dataVersion }: HeatmapProps) {
       if (row) result.push(row);
     }
     return result;
-    // dataVersion forces recomputation when the mutable map contents change
+    // dataVersion is a load-bearing dep: rowDataMap is a stable ref that mutates
+    // in place, so bumping dataVersion is what forces recomputation on data changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tickers, rowDataMap, dataVersion]);
 
   if (items.length === 0) return null;

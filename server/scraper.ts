@@ -4,10 +4,21 @@
  */
 import puppeteer, { type Browser, type ElementHandle, type Page, type HTTPResponse } from 'puppeteer';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { metrics } from './metrics.js';
 
 const CACHE_FILE = resolve('server', '.stock-cache.json');
+
+/**
+ * Fixed, app-specific Chrome user-data-dir. Two reasons:
+ *  1. Cleanup scoping — kill scripts can target ONLY Stox's Chrome via
+ *     `pkill -f 'stox-puppeteer-profile'` instead of nuking every
+ *     Chrome-for-Testing / Puppeteer instance on the machine.
+ *  2. Profile reuse — persists Yahoo consent cookies between runs, which
+ *     reduces consent-wall interruptions.
+ */
+const CHROME_PROFILE_DIR = join(tmpdir(), 'stox-puppeteer-profile');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -157,6 +168,7 @@ function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
     browserPromise = puppeteer.launch({
       headless: true,
+      userDataDir: CHROME_PROFILE_DIR,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     }).catch((err: Error) => {
       browserPromise = null;

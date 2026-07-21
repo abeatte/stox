@@ -40,4 +40,6 @@ npm run dev
 | `npm run preview` | Preview production build |
 | `npm run test` | Run tests |
 | `npm run lint` | Lint with ESLint |
-| `npm run kill-server` | Kill any process on port 3001 |
+| `npm run kill-backend-server` | Gracefully stop the backend (port 3001) + its Chrome |
+| `npm run kill-servers` | Stop backend, Vite (port 5173), and Stox Chrome |
+| `npm run restart-server` | Stop everything, then `dev:all` |

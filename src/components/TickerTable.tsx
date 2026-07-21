@@ -126,13 +126,16 @@ export function TickerTable({ onHelpOpen }: { onHelpOpen: () => void }) {
     (ticker: string, row: StockRowData | null) => {
       const prev = rowDataMap.get(ticker);
       rowDataMap.set(ticker, row);
-      // Only bump version when data actually changes (avoids infinite render loops
-      // since onData is called during child render).
+      // onData is invoked during the child's render, so ALL state updates here
+      // must be deferred to a microtask — updating state synchronously would
+      // trigger React's "Cannot update a component while rendering a different
+      // component" warning (and can cause render loops).
       if (row !== prev) {
-        // Schedule the state update for after render via microtask
         queueMicrotask(() => setDataVersion((v) => v + 1));
       }
-      if (row && !hasData) setHasData(true);
+      if (row && !hasData) {
+        queueMicrotask(() => setHasData(true));
+      }
     },
     [rowDataMap, hasData],
   );

@@ -30,6 +30,37 @@ function toError(err: unknown): Error {
   return new Error(String(err));
 }
 
+/** Number of attempts (1 initial + retries) for flaky per-stage scrapes. */
+const STAGE_ATTEMPTS = 2;
+const RETRY_DELAY_MS = 1500;
+
+/**
+ * Retry a scrape stage on transient failures — navigation/XHR timeouts and
+ * dropped browser connections are common with live Yahoo scraping. Never
+ * retries an abort, and re-checks the signal between attempts.
+ */
+async function withRetry<T>(
+  label: string,
+  fn: () => Promise<T>,
+  signal?: AbortSignal,
+  attempts = STAGE_ATTEMPTS,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    if (signal?.aborted) throw new Error('Aborted');
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const msg = toError(err).message;
+      if (msg === 'Aborted' || attempt === attempts) break;
+      metrics.log(`${label} attempt ${attempt}/${attempts} failed (${msg}); retrying`);
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+    }
+  }
+  throw toError(lastErr);
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -363,9 +394,43 @@ async function scrapeBalanceSheet(ticker: string, signal?: AbortSignal): Promise
 
     const data: BalanceSheetData = await page.evaluate(() => {
       const lines = document.body.innerText.split('\n').map((l: string) => l.trim());
+      // A value cell looks like 352.76B / 1.2T / 950.5M / 15,940 / -1.2B / "--".
+      const valueRe = /^\(?-?\$?[\d,]+(\.\d+)?[KMBT]?\)?$/i;
+      const isValue = (s: string | undefined): boolean => s === '--' || (s != null && valueRe.test(s));
+
+      // Yahoo lays out balance-sheet columns oldest -> newest (e.g.
+      // 1/31/2023 … 1/31/2026), so we must NOT just take the first value cell.
+      // Read the "Breakdown" header to find the number of period columns and
+      // which one is the most recent (TTM, if present, always wins).
+      const dateRe = /^(\d{1,2}\/\d{1,2}\/\d{4}|TTM)$/;
+      let numCols = 0;
+      let latestIdx = 0;
+      const hdr = lines.indexOf('Breakdown');
+      if (hdr >= 0) {
+        const cols: string[] = [];
+        for (let i = hdr + 1; i < lines.length && dateRe.test(lines[i]); i++) cols.push(lines[i]);
+        numCols = cols.length;
+        let best = -Infinity;
+        cols.forEach((c, idx) => {
+          const t = c === 'TTM' ? Infinity : Date.parse(c);
+          if (!Number.isNaN(t) && t > best) { best = t; latestIdx = idx; }
+        });
+      }
+
       const getValue = (label: string): string | null => {
+        // Find the row whose label is immediately followed by value cells
+        // (labels like "Total Assets" also appear in a chart legend with a
+        // non-numeric next line), then return the most-recent period's cell.
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i] === label && i + 1 < lines.length) return lines[i + 1];
+          if (lines[i] !== label || !isValue(lines[i + 1])) continue;
+          const vals: string[] = [];
+          for (let j = i + 1; j < lines.length && isValue(lines[j]); j++) {
+            vals.push(lines[j]);
+            if (numCols > 0 && vals.length >= numCols) break;
+          }
+          if (vals.length === 0) continue;
+          const idx = numCols > 0 && latestIdx < vals.length ? latestIdx : vals.length - 1;
+          return vals[idx];
         }
         return null;
       };
@@ -497,11 +562,18 @@ function toStringVal(field: YahooField | string | number | null | undefined): st
 function parseNum(raw: string | null): number | null {
   if (!raw || raw === '--' || raw === 'N/A') return null;
   let str = raw.trim().replace(/[$,\s]/g, '');
+  // Parenthesised negatives, e.g. "(1.2B)"
   const neg = str.startsWith('(') && str.endsWith(')');
   if (neg) str = str.slice(1, -1);
-  const n = parseFloat(str);
+  // Yahoo abbreviates balance-sheet figures with a magnitude suffix
+  // (e.g. "352.76B", "1.2T", "950.5M", "15.94K"). Capture and scale it.
+  const m = str.match(/^(-?\d+(?:\.\d+)?)([KMBT])?$/i);
+  if (!m) return null;
+  let n = parseFloat(m[1]);
   if (isNaN(n)) return null;
-  return neg ? -n : n;
+  const MULT: Record<string, number> = { K: 1e3, M: 1e6, B: 1e9, T: 1e12 };
+  n *= MULT[(m[2] ?? '').toUpperCase()] ?? 1;
+  return neg ? -Math.abs(n) : n;
 }
 
 // ---------------------------------------------------------------------------
@@ -691,7 +763,7 @@ async function scrapeTickerData(symbol: string, signal: AbortSignal, cachedEntry
   try {
     // 1. Quote summary (EPS, dividend, book value, etc.)
     metrics.updateStage(symbol, 0, 'quote summary');
-    const summary = await fetchQuoteSummary(symbol, signal);
+    const summary = await withRetry('quote summary', () => fetchQuoteSummary(symbol, signal), signal);
     metrics.updateStage(symbol, 1, 'quote summary ✓');
     const fd = summary.financialData ?? {};
     const sd = summary.summaryDetail ?? {};
@@ -705,7 +777,7 @@ async function scrapeTickerData(symbol: string, signal: AbortSignal, cachedEntry
 
     // 2. Real-time price (quote summary HTML is CDN-cached and often stale)
     metrics.updateStage(symbol, 1, 'real-time price');
-    const rtData = await getRealtimePrice(symbol, signal);
+    const rtData = await withRetry('real-time price', () => getRealtimePrice(symbol, signal), signal);
     metrics.updateStage(symbol, 2, 'real-time price ✓');
     price = rtData.price;
     prevClose = rtData.prevClose ?? prevClose;
@@ -748,7 +820,8 @@ async function scrapeTickerData(symbol: string, signal: AbortSignal, cachedEntry
       const bsData = await scrapeBalanceSheet(symbol, signal);
       metrics.updateStage(symbol, 3, 'balance sheet ✓');
 
-      const K = 1000; // Yahoo reports balance sheet values in thousands
+      // parseNum now returns absolute values (it scales Yahoo's K/M/B/T
+      // suffixes), so no further multiplier is applied here.
       const bsTotalAssets = bsData ? parseNum(bsData.totalAssets) : null;
       const bsGoodwill = bsData ? parseNum(bsData.goodwillNet) : null;
       const bsIntangibles = bsData ? parseNum(bsData.intangiblesNet) : null;
@@ -759,12 +832,12 @@ async function scrapeTickerData(symbol: string, signal: AbortSignal, cachedEntry
       const totalEquity = bookValue != null && sharesOutstandingQuote != null
         ? bookValue * sharesOutstandingQuote : null;
 
-      totalAssets = bsTotalAssets != null ? bsTotalAssets * K
+      totalAssets = bsTotalAssets != null ? bsTotalAssets
         : (totalEquity != null && totalDebt != null ? totalEquity + totalDebt : null);
-      goodwillNet = bsGoodwill != null ? bsGoodwill * K : null;
-      intangiblesNet = bsIntangibles != null ? bsIntangibles * K : null;
-      liabilitiesTotal = bsLiabilities != null ? bsLiabilities * K : totalDebt;
-      sharesOutstanding = bsShares != null ? bsShares * K : sharesOutstandingQuote;
+      goodwillNet = bsGoodwill;
+      intangiblesNet = bsIntangibles;
+      liabilitiesTotal = bsLiabilities != null ? bsLiabilities : totalDebt;
+      sharesOutstanding = bsShares != null ? bsShares : sharesOutstandingQuote;
       relatedTickers = bsData?.relatedTickers?.filter((t) => t !== symbol) ?? [];
 
       // 4. Profile (sector/industry)

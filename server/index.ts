@@ -2,7 +2,11 @@
  * Express proxy server for Yahoo Finance stock data.
  * Uses Puppeteer via scraper.ts to fetch and parse Yahoo Finance pages.
  *
- * Usage: npx tsx server/index.ts
+ * Usage: npm run server   (build with tsc, then `node dist/server/index.js`)
+ *        npm run dev:all  (server + Vite frontend together)
+ * Note: do NOT run this via `tsx`/esbuild — esbuild's keepNames transform injects
+ * a `__name` helper that breaks inside Puppeteer's page.evaluate (ReferenceError:
+ * __name is not defined). Compile with tsc (as the npm scripts do) instead.
  * Endpoints:
  *   GET  /alive                    — health check, returns 200 OK
  *   GET  /api/stock/:ticker/stream — SSE stream: progress events then final data

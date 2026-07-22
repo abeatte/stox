@@ -1,4 +1,5 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { ToolBar } from './ToolBar';
 
@@ -95,5 +96,31 @@ describe('ToolBar', () => {
     const props = setup();
     fireEvent.click(screen.getByRole('button', { name: 'Help' }));
     expect(props.onHelpOpen).toHaveBeenCalled();
+  });
+
+  it('renders the Import CSV button and hidden file input', () => {
+    setup();
+    expect(screen.getByRole('button', { name: 'Import CSV' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Import tickers from CSV')).toBeInTheDocument();
+  });
+
+  it('imports tickers from an uploaded CSV via onAddTicker', async () => {
+    const user = userEvent.setup();
+    const onAddTicker = vi.fn(() => null as string | null);
+    setup({ onAddTicker });
+    const file = new File(['Ticker,Price\nAAPL,$1\nMSFT,$2\n'], 'stox.csv', { type: 'text/csv' });
+    await user.upload(screen.getByLabelText('Import tickers from CSV'), file);
+    await waitFor(() => expect(onAddTicker).toHaveBeenCalledWith('AAPL,MSFT'));
+    expect(await screen.findByRole('status')).toHaveTextContent('Imported 2 tickers');
+  });
+
+  it('shows a message and skips onAddTicker when the CSV has no valid tickers', async () => {
+    const user = userEvent.setup();
+    const onAddTicker = vi.fn(() => null as string | null);
+    setup({ onAddTicker });
+    const file = new File(['Ticker,Price\n123,foo\n'], 'bad.csv', { type: 'text/csv' });
+    await user.upload(screen.getByLabelText('Import tickers from CSV'), file);
+    expect(await screen.findByRole('status')).toHaveTextContent('No valid tickers found');
+    expect(onAddTicker).not.toHaveBeenCalled();
   });
 });

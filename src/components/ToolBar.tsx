@@ -1,5 +1,7 @@
+import { useRef, useState, type ChangeEvent } from 'react';
 import { AddTickerForm } from './AddTickerForm';
 import ServerStatus from './ServerStatus';
+import { parseTickersFromCsv } from '../utils/csvImporter';
 
 export interface ToolBarProps {
   searchQuery: string;
@@ -54,6 +56,71 @@ function ExportButton({
   );
 }
 
+/**
+ * Import tickers from a CSV file. Accepts a Stox export (with a "Ticker"
+ * header) or a plain list, and adds the parsed symbols via onAddTicker
+ * (which handles validation and de-duplication).
+ */
+function ImportButton({
+  onAddTicker,
+}: {
+  onAddTicker: (symbol: string) => string | null;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const readText = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => reject(reader.error ?? new Error('read failed'));
+      reader.readAsText(file);
+    });
+
+  const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // reset so the same file can be re-imported
+    if (!file) return;
+    try {
+      const tickers = parseTickersFromCsv(await readText(file));
+      if (tickers.length === 0) {
+        setStatus('No valid tickers found in file.');
+        return;
+      }
+      const result = onAddTicker(tickers.join(','));
+      setStatus(result ?? `Imported ${tickers.length} ticker${tickers.length === 1 ? '' : 's'}.`);
+    } catch {
+      setStatus('Could not read file.');
+    }
+  };
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".csv,text/csv"
+        aria-label="Import tickers from CSV"
+        style={{ display: 'none' }}
+        onChange={handleFile}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        aria-label="Import CSV"
+        title="Import tickers from a CSV file (Stox export or a plain list)"
+      >
+        Import CSV
+      </button>
+      {status && (
+        <span role="status" aria-live="polite" className="gs-import-status" style={{ marginLeft: 8 }}>
+          {status}
+        </span>
+      )}
+    </>
+  );
+}
+
 export function ToolBar({
   searchQuery,
   onSearchChange,
@@ -74,6 +141,7 @@ export function ToolBar({
       <SearchInput value={searchQuery} onChange={onSearchChange} />
       <AddTickerForm onAddTicker={onAddTicker} />
       <ExportButton onExport={onExport} hasData={hasData} />
+      <ImportButton onAddTicker={onAddTicker} />
       <button
         type="button"
         className="gs-help-btn"
